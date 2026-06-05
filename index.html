@@ -439,7 +439,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function yOf(g) { return new Date(g.fecha).getFullYear(); }
   function mOf(g) { return new Date(g.fecha).getMonth(); }
   function sumArr(a) { return a.reduce(function(s,b) { return s + (+b.importe||0); }, 0); }
-  function fmt(n) { return new Intl.NumberFormat('es-ES', {style:'currency', currency:'EUR'}).format(n||0); }
+  function fmt(n) { return new Intl.NumberFormat('es-ES', {style:'currency', currency:'EUR', minimumFractionDigits:2, maximumFractionDigits:2}).format(+(n||0)); }
   function fmtD(f) { return new Date(f+'T12:00').toLocaleDateString('es-ES', {day:'2-digit', month:'short'}); }
   function gastosMes(y,m) { return ST.gastos.filter(function(g) { return yOf(g)===y && mOf(g)===m; }); }
   function gastosAnyo(y) { return ST.gastos.filter(function(g) { return yOf(g)===y; }); }
