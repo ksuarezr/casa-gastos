@@ -865,7 +865,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var pN = isDash ? rDef.nec : (+(pNel?pNel.value:rDef.nec)||rDef.nec);
     var pD = isDash ? rDef.des : (+(pDel?pDel.value:rDef.des)||rDef.des);
     var pA = isDash ? rDef.aho : (+(pAel?pAel.value:rDef.aho)||rDef.aho);
-    var ing = isDash ? incT(CY,CM) : (tab==='juls' ? incJ(CY,CM) : incK(CY,CM));
+    // Base for % rule = salary + bonus only (no ticket/otros)
+    var incRaw2 = getInc(CY,CM);
+    var ingJuls = (+incRaw2.js||0) + (+incRaw2.jb||0);
+    var ingKev  = (+incRaw2.ks||0) + (+incRaw2.kb||0);
+    var ing = isDash ? (ingJuls + ingKev) : (tab==='juls' ? ingJuls : ingKev);
     var g=gastosMes(CY,CM);
     var rN = isDash ? sumArr(gastosC(g,'madrid'))+sumArr(gastosC(g,'asturias')) : sumArr(gastosC(g,tab));
     var rD = isDash ? sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev')) : sumArr(gastosC(g,tab));
@@ -1040,7 +1044,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   }
   function renderAportaciones() {
     var ap = getAportaciones(CY,CM);
+    var incRaw = getInc(CY,CM);
     var jInc = incJ(CY,CM), kInc = incK(CY,CM);
+    // Liquido base = salario + bonus only (exclude ticket/otros)
+    var jLiqBase = (+incRaw.js||0) + (+incRaw.jb||0);
+    var kLiqBase = (+incRaw.ks||0) + (+incRaw.kb||0);
     var rJ = ST.regla.juls||{nec:50}, rK = ST.regla.kev||{nec:50};
     var jNec = jInc*(rJ.nec/100), kNec = kInc*(rK.nec/100);
     var rows = [
@@ -1063,12 +1071,12 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var kAport = apVals.km + apVals.ka, jAport = apVals.jm + apVals.ja;
     var kFijos = totalFijos('kev'), jFijos = totalFijos('juls');
     var rKd = ST.regla.kev||{des:30,aho:20}, rJd = ST.regla.juls||{des:30,aho:20};
-    var kLiq = kInc - kAport - kFijos, jLiq = jInc - jAport - jFijos;
+    var kLiq = kLiqBase - kAport - kFijos, jLiq = jLiqBase - jAport - jFijos;
     var liqEl = document.getElementById('liquido-summary');
     if (liqEl) {
       liqEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">' +
-        liqCard(ST.nombres.kev,'kev',kInc,kAport,kFijos,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
-        liqCard(ST.nombres.juls,'juls',jInc,jAport,jFijos,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
+        liqCard(ST.nombres.kev,'kev',kLiqBase,kAport,kFijos,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
+        liqCard(ST.nombres.juls,'juls',jLiqBase,jAport,jFijos,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
         '</div>';
     }
   }
@@ -1078,7 +1086,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       '<div class="clabel">'+nombre+' - Liquido</div>'+
       '<div class="cval" style="color:var(--'+col+')">'+fmt(liq)+'</div>'+
       '<div style="font-size:.75rem;color:#8a8578;margin-top:6px;line-height:1.9">'+
-      '<div>Ingresos: <strong>'+fmt(ing)+'</strong></div>'+
+      '<div>Salario + Bonus: <strong>'+fmt(ing)+'</strong></div>'+
       '<div>Aportacion casas: <strong style="color:var(--rust)">-'+fmt(aport)+'</strong></div>'+
       '<div>Gastos fijos: <strong style="color:var(--rust)">-'+fmt(fijos)+'</strong></div>'+
       '<div style="border-top:1px solid rgba(26,26,46,.08);padding-top:4px;margin-top:3px">'+
