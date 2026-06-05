@@ -502,6 +502,53 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       .then(function(r) { if(!r.ok) throw new Error('PUT '+r.status); return r.json(); });
   }
 
+  function sheetsAppend(range, values) {
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range)+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
+    return fetch(url, {method:'POST', headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'}, body:JSON.stringify({range:range,majorDimension:'ROWS',values:values})})
+      .then(function(r) { if(!r.ok) throw new Error('APPEND '+r.status); return r.json(); });
+  }
+
+  function sheetsGetAll(range) {
+    return sheetsGet(range).then(function(r) { return r.values||[]; });
+  }
+
+  function fastSaveGasto(gasto) {
+    // Append single row to Gastos sheet
+    if (!accessToken) return Promise.resolve();
+    var row = [[gasto.id, gasto.cuenta, gasto.categoria, gasto.importe, gasto.fecha, gasto.descripcion||'']];
+    return sheetsAppend('Gastos!A:F', row)
+      .then(function() { setSyncStatus('ok', 'Guardado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})); })
+      .catch(function(e) {
+        if (e.message.indexOf('401') !== -1) { renewSession(); }
+        else { setSyncStatus('err', 'Error al guardar'); console.error(e); }
+      });
+  }
+
+  function fastDeleteGasto(gastoId) {
+    // Full sync needed for deletes - but do it silently
+    if (!accessToken) return Promise.resolve();
+    return syncAll(true);
+  }
+
+  function fastUpdateGasto(gasto) {
+    // Find row in sheet and update it, fallback to full sync
+    if (!accessToken) return Promise.resolve();
+    return sheetsGetAll('Gastos!A:A').then(function(rows) {
+      var rowIdx = -1;
+      for (var i=1; i<rows.length; i++) {
+        if (rows[i][0] === gasto.id) { rowIdx = i+1; break; }
+      }
+      if (rowIdx === -1) return syncAll(true);
+      var range = 'Gastos!A'+rowIdx+':F'+rowIdx;
+      return sheetsSet(range, [[gasto.id, gasto.cuenta, gasto.categoria, gasto.importe, gasto.fecha, gasto.descripcion||'']]);
+    }).then(function() {
+      setSyncStatus('ok', 'Actualizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
+    }).catch(function(e) {
+      if (e.message.indexOf('401') !== -1) { renewSession(); }
+      else { console.error(e); syncAll(true); }
+    });
+  }
+
   function sheetsClear(range) {
     var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range)+':clear';
     return fetch(url, {method:'POST', headers:{Authorization:'Bearer '+accessToken}});
@@ -714,11 +761,23 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var desc=document.getElementById('fDesc').value.trim();
     var eid=document.getElementById('eid').value;
     if(!cat||isNaN(imp)||imp<=0||!fecha){alert('Rellena categoria, importe y fecha.');return;}
-    if(eid){var idx=ST.gastos.findIndex(function(g){return g.id===eid;});if(idx!==-1)ST.gastos[idx]={id:eid,cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};}
-    else ST.gastos.push({id:uid(),cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc});
-    cancelEdit();
-    renderNuevo();
-    syncAll(true);
+    if(eid){
+      var idx=ST.gastos.findIndex(function(g){return g.id===eid;});
+      if(idx!==-1){
+        ST.gastos[idx]={id:eid,cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};
+        save();
+        cancelEdit();
+        renderNuevo();
+        fastUpdateGasto(ST.gastos[idx]);
+      }
+    } else {
+      var newG={id:uid(),cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};
+      ST.gastos.push(newG);
+      save();
+      cancelEdit();
+      renderNuevo();
+      fastSaveGasto(newG);
+    }
   }
 
   function cancelEdit() {
@@ -747,7 +806,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function delGasto(id) {
     if(!confirm('Eliminar este gasto?'))return;
     ST.gastos=ST.gastos.filter(function(g){return g.id!==id;});
-    renderNuevo();syncAll();
+    save();
+    renderNuevo();
+    fastDeleteGasto(id);
 
   }
 
