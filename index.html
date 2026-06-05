@@ -257,6 +257,20 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         <button class="btn" id="btnAport">Guardar aportaciones</button>
         <div id="liquido-summary" style="margin-top:14px"></div>
       </div>
+      <div class="stitle">Gastos fijos personales</div>
+      <div class="panel" style="padding:15px 17px">
+        <p style="font-size:.78rem;color:#8a8578;margin-bottom:12px">Cuotas fijas mensuales (prestamos, gimnasio...). Se descuentan del liquido disponible.</p>
+        <div class="ptabs" style="margin-bottom:12px">
+          <button class="pill aj" id="ftabJ">&#128105; Juls</button>
+          <button class="pill" id="ftabK">&#128104; Kev</button>
+        </div>
+        <div id="fijos-list"></div>
+        <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+          <input type="text" id="fijos-desc" placeholder="Ej: Gimnasio, Prestamo..." style="flex:1;min-width:140px;border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:7px 10px;font-family:DM Sans,sans-serif;font-size:.84rem;background:var(--paper);outline:none;">
+          <input type="number" id="fijos-imp" placeholder="Importe" min="0" step="1" inputmode="decimal" style="width:110px;border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:7px 10px;font-family:DM Sans,sans-serif;font-size:.84rem;background:var(--paper);outline:none;">
+          <button class="btn" id="btnAddFijo">Anadir</button>
+        </div>
+      </div>
       <div style="text-align:right;margin-top:10px"><button class="btn" id="btnIngresos">Guardar ingresos</button></div>
     </div>
     <div class="sec" id="s-lista">
@@ -334,6 +348,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     budgets: {madrid:{}, asturias:{}},
     budgetPersonal: {},
     aportaciones: {},
+    gastosFijos: {juls:[], kev:[]},
     gastos: []
   };
 
@@ -341,6 +356,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   var aCasa = 'madrid', aPers = 'juls', aBSCasa = 'madrid', aBSM = CM;
   var charts = {}, accessToken = null, currentUser = null;
   var activeReglaTab = 'juls';
+  var activeFijosTab = 'juls';
+  function totalFijos(p) { return ((ST.gastosFijos||{})[p]||[]).reduce(function(s,g){return s+(+g.importe||0);},0); }
   function getAportaciones(y,m) { return ((ST.aportaciones||{})[y]||{})[m]||{km:0,ka:0,jm:0,ja:0}; }
   function saveAportacion(y,m,key,val) {
     if (!ST.aportaciones) ST.aportaciones={};
@@ -370,6 +387,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         if (!ST.budgets.asturias) ST.budgets.asturias = {};
         if (!ST.cats) ST.cats = {casa: CATS_CASA.slice(), personal: CATS_PERS.slice()};
         if (!ST.budgetPersonal) ST.budgetPersonal = {};
+        if (!ST.gastosFijos) ST.gastosFijos = {juls:[], kev:[]};
         if (!ST.regla) ST.regla = {juls:{nec:50,des:30,aho:20},kev:{nec:50,des:30,aho:20}};
         if (ST.regla.nec !== undefined) ST.regla = {juls:{nec:ST.regla.nec,des:ST.regla.des,aho:ST.regla.aho},kev:{nec:ST.regla.nec,des:ST.regla.des,aho:ST.regla.aho}};
         if (!ST.gastos) ST.gastos = [];
@@ -534,6 +552,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(cfg.regla_juls) try{ST.regla.juls=JSON.parse(cfg.regla_juls);}catch(e){}
       if(cfg.regla_kev) try{ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
       if(cfg.aportaciones) try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
+      if(cfg.gastos_fijos) try{ST.gastosFijos=JSON.parse(cfg.gastos_fijos);}catch(e){}
     }).catch(function(e) { console.warn('config',e); })
     .then(function() { save(); });
   }
@@ -576,7 +595,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         ['budget_personal',JSON.stringify(ST.budgetPersonal||{})],
         ['regla_juls',JSON.stringify(ST.regla.juls||{nec:50,des:30,aho:20})],
         ['regla_kev',JSON.stringify(ST.regla.kev||{nec:50,des:30,aho:20})],
-        ['aportaciones',JSON.stringify(ST.aportaciones||{})]
+        ['aportaciones',JSON.stringify(ST.aportaciones||{})],
+        ['gastos_fijos',JSON.stringify(ST.gastosFijos||{})]
       ];
       return sheetsSet('Config!A1', cfgRows);
     }).then(function() {
@@ -859,7 +879,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       var el=document.getElementById(id);
       if(el)el.addEventListener('input',function(){updI();renderRegla('ing-regla');});
     });
-    updI();renderRegla('ing-regla');renderAportaciones();
+    updI();renderRegla('ing-regla');renderAportaciones();renderFijosTab();
   }
 
   function updI() {
@@ -869,6 +889,36 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     s('ts_s',js+ks);s('ts_b',jb+kb);s('ts_o',jo+ko);s('ts_j',js+jb+jo);s('ts_k',ks+kb+ko);s('ts_t',js+jb+jo+ks+kb+ko);
   }
 
+  function switchFijosTab(p) {
+    activeFijosTab = p;
+    document.getElementById('ftabJ').className = 'pill' + (p==='juls' ? ' aj' : '');
+    document.getElementById('ftabK').className = 'pill' + (p==='kev' ? ' ak' : '');
+    renderFijosTab();
+  }
+  function renderFijosTab() {
+    var items = ((ST.gastosFijos||{})[activeFijosTab]||[]);
+    var total = totalFijos(activeFijosTab);
+    var el = document.getElementById('fijos-list');
+    if (!el) return;
+    if (!items.length) { el.innerHTML = '<p style="font-size:.8rem;color:#aaa;margin-bottom:8px">Sin gastos fijos.</p>'; return; }
+    el.innerHTML = '<table class="bt" style="margin-bottom:8px"><thead><tr><th>Concepto</th><th>EUR/mes</th><th></th></tr></thead><tbody>' +
+      items.map(function(g,i) {
+        return '<tr><td>'+g.desc+'</td><td style="font-weight:600">'+fmt(g.importe)+'</td>'+
+          '<td><button class="btn danger sm" data-fijo-idx="'+i+'">X</button></td></tr>';
+      }).join('') +
+      '<tr class="totrow"><td>TOTAL</td><td>'+fmt(total)+'</td><td></td></tr>' +
+      '</tbody></table>';
+    el.querySelectorAll('[data-fijo-idx]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-fijo-idx'));
+        if (!confirm('Eliminar este gasto fijo?')) return;
+        ST.gastosFijos[activeFijosTab].splice(idx, 1);
+        renderFijosTab();
+        renderAportaciones();
+        syncAll();
+      });
+    });
+  }
   function renderAportaciones() {
     var ap = getAportaciones(CY,CM);
     var jInc = incJ(CY,CM), kInc = incK(CY,CM);
@@ -892,17 +942,18 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       jm: +(ap.jm||rows[2].teorico), ja: +(ap.ja||rows[3].teorico)
     };
     var kAport = apVals.km + apVals.ka, jAport = apVals.jm + apVals.ja;
+    var kFijos = totalFijos('kev'), jFijos = totalFijos('juls');
     var rKd = ST.regla.kev||{des:30,aho:20}, rJd = ST.regla.juls||{des:30,aho:20};
-    var kLiq = kInc - kAport, jLiq = jInc - jAport;
+    var kLiq = kInc - kAport - kFijos, jLiq = jInc - jAport - jFijos;
     var liqEl = document.getElementById('liquido-summary');
     if (liqEl) {
       liqEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">' +
-        liqCard(ST.nombres.kev,'kev',kInc,kAport,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
-        liqCard(ST.nombres.juls,'juls',jInc,jAport,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
+        liqCard(ST.nombres.kev,'kev',kInc,kAport,kFijos,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
+        liqCard(ST.nombres.juls,'juls',jInc,jAport,jFijos,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
         '</div>';
     }
   }
-  function liqCard(nombre,p,ing,aport,liq,persObj,ahoObj) {
+  function liqCard(nombre,p,ing,aport,fijos,liq,persObj,ahoObj) {
     var col = liq >= 0 ? 'green' : 'red';
     return '<div class="card '+p+'" style="padding:14px 16px">'+
       '<div class="clabel">'+nombre+' - Liquido</div>'+
@@ -910,6 +961,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       '<div style="font-size:.75rem;color:#8a8578;margin-top:6px;line-height:1.9">'+
       '<div>Ingresos: <strong>'+fmt(ing)+'</strong></div>'+
       '<div>Aportacion casas: <strong style="color:var(--rust)">-'+fmt(aport)+'</strong></div>'+
+      '<div>Gastos fijos: <strong style="color:var(--rust)">-'+fmt(fijos)+'</strong></div>'+
       '<div style="border-top:1px solid rgba(26,26,46,.08);padding-top:4px;margin-top:3px">'+
       'Personal obj: <strong>'+fmt(persObj)+'</strong><br>'+
       'Ahorro obj: <strong>'+fmt(ahoObj)+'</strong></div>'+
@@ -1247,6 +1299,21 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     });
     document.getElementById('rtabJ').addEventListener('click', function(){switchReglaTab('juls');});
     document.getElementById('rtabK').addEventListener('click', function(){switchReglaTab('kev');});
+    document.getElementById('ftabJ').addEventListener('click', function(){switchFijosTab('juls');});
+    document.getElementById('ftabK').addEventListener('click', function(){switchFijosTab('kev');});
+    document.getElementById('btnAddFijo').addEventListener('click', function(){
+      var desc = document.getElementById('fijos-desc').value.trim();
+      var imp = parseFloat(document.getElementById('fijos-imp').value)||0;
+      if (!desc || imp<=0) { alert('Añade descripcion e importe.'); return; }
+      if (!ST.gastosFijos) ST.gastosFijos = {juls:[], kev:[]};
+      if (!ST.gastosFijos[activeFijosTab]) ST.gastosFijos[activeFijosTab] = [];
+      ST.gastosFijos[activeFijosTab].push({desc:desc, importe:imp});
+      document.getElementById('fijos-desc').value = '';
+      document.getElementById('fijos-imp').value = '';
+      renderFijosTab();
+      renderAportaciones();
+      syncAll();
+    });
     document.getElementById('btnAport').addEventListener('click', function(){
       var keys = ['km','ka','jm','ja'];
       keys.forEach(function(k){
