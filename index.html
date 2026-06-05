@@ -494,8 +494,8 @@ function setSyncStatus(status,msg){
 // ═══════════════════════════════════════
 function startLogin(){
   // Clear any saved token to force fresh auth with correct scopes
-  sessionStorage.removeItem('jk_token');
-  sessionStorage.removeItem('jk_user');
+  localStorage.removeItem('jk_token');
+  localStorage.removeItem('jk_user');
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: window.location.origin + window.location.pathname,
@@ -530,8 +530,9 @@ async function getUserInfo(){
     currentUser = u.name || u.email || 'Usuario';
     document.getElementById('user-badge').textContent = currentUser;
     // Save to session so refresh doesn't lose login
-    sessionStorage.setItem('jk_token', accessToken);
-    sessionStorage.setItem('jk_user', currentUser);
+    localStorage.setItem('jk_token', accessToken);
+    localStorage.setItem('jk_user', currentUser);
+    localStorage.setItem('jk_time', Date.now().toString());
   }catch(e){ currentUser='Usuario'; }
 }
 
@@ -1388,17 +1389,27 @@ window.addEventListener('load', async ()=>{
     renderNuevo();
   } else {
     // Check if we have a saved token (session)
-    const saved = sessionStorage.getItem('jk_token');
-    const savedUser = sessionStorage.getItem('jk_user');
+    const saved = localStorage.getItem('jk_token');
+    const savedUser = localStorage.getItem('jk_user');
     if(saved){
-      accessToken = saved;
-      currentUser = savedUser || 'Usuario';
-      document.getElementById('user-badge').textContent = currentUser;
-      document.getElementById('login-screen').style.display='none';
-      document.getElementById('app').style.display='block';
-      document.querySelector('nav button').classList.add('active');
-      await initSheetAndLoad();
-      renderNuevo();
+      // Check token not older than 30 days
+      const savedTime = parseInt(localStorage.getItem('jk_time')||'0');
+      const sevenDays = 7*24*60*60*1000;
+      if(Date.now() - savedTime < sevenDays){
+        accessToken = saved;
+        currentUser = savedUser || 'Usuario';
+        document.getElementById('user-badge').textContent = currentUser;
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('app').style.display='block';
+        document.querySelector('nav button').classList.add('active');
+        await initSheetAndLoad();
+        renderNuevo();
+      } else {
+        // Token expired, clear and show login
+        localStorage.removeItem('jk_token');
+        localStorage.removeItem('jk_user');
+        localStorage.removeItem('jk_time');
+      }
     }
     // else stay on login screen
   }
