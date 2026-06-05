@@ -155,7 +155,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   </div>
 </div>
 <div id="app" style="display:none">
-  <div id="sync-bar"><div style="display:flex;align-items:center;gap:7px"><div class="sdot" id="sdot"></div><span id="smsg">Conectando...</span></div><button id="sync-btn">&#8635; Sync</button></div>
+  <div id="sync-bar"><div style="display:flex;align-items:center;gap:7px"><div class="sdot" id="sdot"></div><span id="smsg">Conectando...</span></div><div style="display:flex;gap:6px"><button id="sync-btn">&#8635; Sync</button><button id="renew-btn" title="Renovar sesion si hay error 401" style="background:rgba(255,255,255,.12);border:none;color:var(--paper);padding:3px 10px;border-radius:10px;font-size:.72rem;cursor:pointer;font-family:DM Sans,sans-serif;">&#128274; Login</button></div></div>
   <header>
     <div class="logo">Casa<span>&amp;</span>Gastos</div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -355,6 +355,22 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   var CY = 2026, CM = new Date().getMonth();
   var aCasa = 'madrid', aPers = 'juls', aBSCasa = 'madrid', aBSM = CM;
   var charts = {}, accessToken = null, currentUser = null;
+  var CAT_NORM = {
+    'Alimentación':'Alimentacion','Telefonía e Internet':'Telefonia e Internet',
+    'Seguro Vehículo':'Seguro Vehiculo','Cuotas y Suscripciones':'Cuotas y Suscripciones',
+    'Viñeta/ITV':'Vineta ITV','Viñeta ITV':'Vineta ITV',
+    'Transporte/Gasolina':'Transporte/Gasolina',
+    'Café y Oficina':'Cafe Oficina','Cafe y Oficina':'Cafe Oficina',
+    'Café Oficina':'Cafe Oficina',
+    'Gimnasio/Deporte':'Gimnasio Deporte','Gimnasio Deporte':'Gimnasio Deporte',
+    'Préstamos':'Prestamos',
+    'Otros Personales':'Otros Personales','Otros personales':'Otros Personales',
+    'Cuidado Personal':'Cuidado Personal',
+    'Aportación Madrid':'Aportacion Madrid','Aportación Asturias':'Aportacion Asturias',
+    'Gastos Varios':'Gastos Varios','Suministros Agua':'Suministros Agua',
+    'Suministros Luz y Gas':'Suministros Luz y Gas'
+  };
+  function normCat(cat) { return CAT_NORM[cat] || cat; }
   var activeReglaTab = 'juls';
   var activeFijosTab = 'juls';
   function totalFijos(p) { return ((ST.gastosFijos||{})[p]||[]).reduce(function(s,g){return s+(+g.importe||0);},0); }
@@ -448,6 +464,19 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
   }
 
+  function renewSession() {
+    // Save current path and trigger login without clearing data
+    localStorage.setItem('jk_renewing', '1');
+    var params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: window.location.origin + window.location.pathname,
+      response_type: 'token',
+      scope: SCOPES,
+      include_granted_scopes: 'true',
+      prompt: 'select_account'
+    });
+    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+  }
   function checkAuthCallback() {
     var hash = window.location.hash.substring(1);
     if (!hash) return false;
@@ -489,6 +518,53 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       .then(function(r) { if(!r.ok) throw new Error('PUT '+r.status); return r.json(); });
   }
 
+  function sheetsAppend(range, values) {
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range)+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS';
+    return fetch(url, {method:'POST', headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'}, body:JSON.stringify({range:range,majorDimension:'ROWS',values:values})})
+      .then(function(r) { if(!r.ok) throw new Error('APPEND '+r.status); return r.json(); });
+  }
+
+  function sheetsGetAll(range) {
+    return sheetsGet(range).then(function(r) { return r.values||[]; });
+  }
+
+  function fastSaveGasto(gasto) {
+    // Append single row to Gastos sheet
+    if (!accessToken) return Promise.resolve();
+    var row = [[gasto.id, gasto.cuenta, gasto.categoria, gasto.importe, gasto.fecha, gasto.descripcion||'']];
+    return sheetsAppend('Gastos!A:F', row)
+      .then(function() { setSyncStatus('ok', 'Guardado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})); })
+      .catch(function(e) {
+        if (e.message.indexOf('401') !== -1) { renewSession(); }
+        else { setSyncStatus('err', 'Error al guardar'); console.error(e); }
+      });
+  }
+
+  function fastDeleteGasto(gastoId) {
+    // Full sync needed for deletes - but do it silently
+    if (!accessToken) return Promise.resolve();
+    return syncAll(true);
+  }
+
+  function fastUpdateGasto(gasto) {
+    // Find row in sheet and update it, fallback to full sync
+    if (!accessToken) return Promise.resolve();
+    return sheetsGetAll('Gastos!A:A').then(function(rows) {
+      var rowIdx = -1;
+      for (var i=1; i<rows.length; i++) {
+        if (rows[i][0] === gasto.id) { rowIdx = i+1; break; }
+      }
+      if (rowIdx === -1) return syncAll(true);
+      var range = 'Gastos!A'+rowIdx+':F'+rowIdx;
+      return sheetsSet(range, [[gasto.id, gasto.cuenta, gasto.categoria, gasto.importe, gasto.fecha, gasto.descripcion||'']]);
+    }).then(function() {
+      setSyncStatus('ok', 'Actualizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
+    }).catch(function(e) {
+      if (e.message.indexOf('401') !== -1) { renewSession(); }
+      else { console.error(e); syncAll(true); }
+    });
+  }
+
   function sheetsClear(range) {
     var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range)+':clear';
     return fetch(url, {method:'POST', headers:{Authorization:'Bearer '+accessToken}});
@@ -514,7 +590,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     return sheetsGet('Gastos!A:F').then(function(r) {
       var rows = (r.values||[]).slice(1);
       ST.gastos = rows.filter(function(r) { return r[0]; }).map(function(r) {
-        return {id:r[0],cuenta:r[1],categoria:r[2],importe:parseFloat(r[3])||0,fecha:r[4],descripcion:r[5]||''};
+        return {id:r[0],cuenta:r[1],categoria:normCat(r[2]),importe:parseFloat(r[3])||0,fecha:r[4],descripcion:r[5]||''};
       });
     }).catch(function(e) { console.warn('gastos',e); })
     .then(function() { return sheetsGet('Ingresos!A:H'); }).then(function(r) {
@@ -553,14 +629,17 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(cfg.regla_kev) try{ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
       if(cfg.aportaciones) try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
       if(cfg.gastos_fijos) try{ST.gastosFijos=JSON.parse(cfg.gastos_fijos);}catch(e){}
-    }).catch(function(e) { console.warn('config',e); })
+    }).catch(function(e) {
+      if (e.message.indexOf('401') !== -1) { renewSession(); return; }
+      console.warn('config',e);
+    })
     .then(function() { save(); });
   }
 
-  function syncAll() {
+  function syncAll(silent) {
     if (!accessToken) { setSyncStatus('err','No autenticado'); return Promise.resolve(); }
     setSyncStatus('','Sincronizando...');
-    showLoading('Guardando...');
+    if (!silent) showLoading('Guardando...');
     return sheetsClear('Gastos!A:F').then(function() {
       var gRows = [['id','cuenta','categoria','importe','fecha','descripcion']];
       ST.gastos.forEach(function(g) { gRows.push([g.id,g.cuenta,g.categoria,g.importe,g.fecha,g.descripcion||'']); });
@@ -604,8 +683,17 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       setSyncStatus('ok','Sincronizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
     }).catch(function(e) {
       console.error(e);
-      setSyncStatus('err','Error: '+e.message.slice(0,30));
-    }).then(function() { hideLoading(); });
+      if (e.message.indexOf('401') !== -1) {
+        setSyncStatus('err','Sesion caducada - renovando...');
+        hideLoading();
+        renewSession();
+      } else {
+        setSyncStatus('err','Error: '+e.message.slice(0,30));
+        hideLoading();
+      }
+    }).then(function(){
+      if (!silent) hideLoading();
+    });
   }
 
   function initAndLoad() {
@@ -655,12 +743,19 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var c=document.getElementById('fCuenta').value, cat=document.getElementById('fCat').value;
     var hint=document.getElementById('hint');
     if (['madrid','asturias'].indexOf(c)===-1) { hint.style.display='none'; return; }
-    var b=+(getBM(c,CY,CM)[cat]||0);
+    // Use fecha from form to get correct month
+    var fechaEl=document.getElementById('fFecha');
+    var m=CM, y=CY;
+    if (fechaEl && fechaEl.value) {
+      var d=new Date(fechaEl.value+'T12:00');
+      m=d.getMonth(); y=d.getFullYear();
+    }
+    var b=+(getBM(c,y,m)[cat]||0);
     if (!b) { hint.style.display='none'; return; }
-    var r=sumArr(gastosMes(CY,CM).filter(function(g) { return g.cuenta===c&&g.categoria===cat; }));
+    var r=sumArr(gastosMes(y,m).filter(function(g) { return g.cuenta===c&&g.categoria===cat; }));
     var resto=b-r, col=resto>0?'green':resto>-b*0.1?'amber':'red';
     hint.style.display='block';
-    hint.innerHTML='Budget '+fmt(b)+' - Gastado '+fmt(r)+' - <span style="color:var(--'+col+');font-weight:700">'+(resto>=0?'Quedan '+fmt(resto):'Excedido '+fmt(-resto))+'</span>';
+    hint.innerHTML='Budget '+MESES[m]+': '+fmt(b)+' - Gastado: '+fmt(r)+' - <span style="color:var(--'+col+');font-weight:700">'+(resto>=0?'Quedan '+fmt(resto):'Excedido '+fmt(-resto))+'</span>';
   }
 
   function renderNuevo() {
@@ -689,9 +784,23 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var desc=document.getElementById('fDesc').value.trim();
     var eid=document.getElementById('eid').value;
     if(!cat||isNaN(imp)||imp<=0||!fecha){alert('Rellena categoria, importe y fecha.');return;}
-    if(eid){var idx=ST.gastos.findIndex(function(g){return g.id===eid;});if(idx!==-1)ST.gastos[idx]={id:eid,cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};}
-    else ST.gastos.push({id:uid(),cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc});
-    cancelEdit();renderNuevo();syncAll();
+    if(eid){
+      var idx=ST.gastos.findIndex(function(g){return g.id===eid;});
+      if(idx!==-1){
+        ST.gastos[idx]={id:eid,cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};
+        save();
+        cancelEdit();
+        renderNuevo();
+        fastUpdateGasto(ST.gastos[idx]);
+      }
+    } else {
+      var newG={id:uid(),cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};
+      ST.gastos.push(newG);
+      save();
+      cancelEdit();
+      renderNuevo();
+      fastSaveGasto(newG);
+    }
   }
 
   function cancelEdit() {
@@ -720,7 +829,10 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function delGasto(id) {
     if(!confirm('Eliminar este gasto?'))return;
     ST.gastos=ST.gastos.filter(function(g){return g.id!==id;});
-    renderNuevo();syncAll();
+    save();
+    renderNuevo();
+    fastDeleteGasto(id);
+
   }
 
   function setDbM(m){CM=m;renderDashboard();}
@@ -1107,49 +1219,49 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       {cuenta:'kev',categoria:'Viajes',importe:15,fecha:'2026-01-18',descripcion:'Viajes'},
       {cuenta:'kev',categoria:'Otros Personales',importe:72.29,fecha:'2026-01-25',descripcion:'Otros'},
       {cuenta:'kev',categoria:'Cuidado Personal',importe:134,fecha:'2026-01-12',descripcion:'Cuidado personal'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.2,fecha:'2026-06-04',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.2,fecha:'2026-06-04',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:6.4,fecha:'2026-06-03',descripcion:'Cocacola'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:2.5,fecha:'2026-06-03',descripcion:'Cafe'},
-      {cuenta:'kev',categoria:'Restaurantes',importe:60.0,fecha:'2026-06-01',descripcion:'Japones'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:2.5,fecha:'2026-06-03',descripcion:'Café'},
+      {cuenta:'kev',categoria:'Restaurantes',importe:60.0,fecha:'2026-06-01',descripcion:'Japonés'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:23.0,fecha:'2026-06-01',descripcion:'Capataz'},
       {cuenta:'kev',categoria:'Regalos',importe:120.0,fecha:'2026-05-29',descripcion:'Regalo Reyes primos'},
       {cuenta:'kev',categoria:'Restaurantes',importe:43.35,fecha:'2026-05-27',descripcion:'Champions burguer'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:4.2,fecha:'2026-05-26',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:4.2,fecha:'2026-05-26',descripcion:'Café'},
       {cuenta:'kev',categoria:'Cuidado Personal',importe:20.0,fecha:'2026-05-26',descripcion:'Peluquero'},
       {cuenta:'kev',categoria:'Otros Personales',importe:25.95,fecha:'2026-05-26',descripcion:'Aspersores'},
-      {cuenta:'kev',categoria:'Otros Personales',importe:18.01,fecha:'2026-05-26',descripcion:'Envio aspersores'},
+      {cuenta:'kev',categoria:'Otros Personales',importe:18.01,fecha:'2026-05-26',descripcion:'Envío aspersores'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:7.0,fecha:'2026-05-24',descripcion:'Mini'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:0.6,fecha:'2026-05-23',descripcion:'Peaje'},
       {cuenta:'kev',categoria:'Restaurantes',importe:14.5,fecha:'2026-05-22',descripcion:'Burguer Pinks'},
       {cuenta:'kev',categoria:'Restaurantes',importe:13.2,fecha:'2026-05-22',descripcion:'Pollo Franguito'},
       {cuenta:'kev',categoria:'Cuidado Personal',importe:2.94,fecha:'2026-05-22',descripcion:'Test COVID'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.45,fecha:'2026-05-22',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.45,fecha:'2026-05-22',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:38.0,fecha:'2026-05-21',descripcion:'Reginella'},
       {cuenta:'kev',categoria:'Cuidado Personal',importe:20.47,fecha:'2026-05-20',descripcion:'Medicamento'},
       {cuenta:'kev',categoria:'Restaurantes',importe:3.8,fecha:'2026-05-17',descripcion:'Helados'},
       {cuenta:'kev',categoria:'Restaurantes',importe:40.79,fecha:'2026-05-16',descripcion:'Milwakee'},
       {cuenta:'kev',categoria:'Restaurantes',importe:66.0,fecha:'2026-05-16',descripcion:'Copas retiro'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:24.0,fecha:'2026-05-14',descripcion:'Comida'},
-      {cuenta:'kev',categoria:'Regalos',importe:5.0,fecha:'2026-05-14',descripcion:'Regalo Carlos'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.6,fecha:'2026-05-14',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Regalos',importe:5.0,fecha:'2026-05-14',descripcion:'Regalo Carlos ey'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.6,fecha:'2026-05-14',descripcion:'Café'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:18.4,fecha:'2026-05-14',descripcion:'Moto'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:0.85,fecha:'2026-05-12',descripcion:'Snack'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:9.11,fecha:'2026-05-10',descripcion:'Mini'},
-      {cuenta:'kev',categoria:'Restaurantes',importe:17.6,fecha:'2026-05-09',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Restaurantes',importe:17.6,fecha:'2026-05-09',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Restaurantes',importe:26.0,fecha:'2026-05-09',descripcion:'Jota'},
       {cuenta:'kev',categoria:'Gimnasio Deporte',importe:50.0,fecha:'2026-05-08',descripcion:'Encin golf'},
       {cuenta:'kev',categoria:'Restaurantes',importe:35.8,fecha:'2026-05-08',descripcion:'Mexicano'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:64.0,fecha:'2026-05-05',descripcion:'Comida audit'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:4.8,fecha:'2026-05-05',descripcion:'Cafe Marimar'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:4.8,fecha:'2026-05-05',descripcion:'Café Marimar'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:42.79,fecha:'2026-05-01',descripcion:'Tiguan asturias'},
       {cuenta:'kev',categoria:'Regalos',importe:40.0,fecha:'2026-05-01',descripcion:'Regalos gemelos'},
       {cuenta:'kev',categoria:'Otros Personales',importe:41.0,fecha:'2026-05-01',descripcion:'Percebes'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.75,fecha:'2026-04-28',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.75,fecha:'2026-04-28',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Restaurantes',importe:11.5,fecha:'2026-04-26',descripcion:'Cafe'},
       {cuenta:'kev',categoria:'Regalos',importe:35.0,fecha:'2026-04-26',descripcion:'Bolso ma'},
       {cuenta:'kev',categoria:'Ropa',importe:65.0,fecha:'2026-04-26',descripcion:'Alpargatas'},
       {cuenta:'kev',categoria:'Viajes',importe:11.4,fecha:'2026-04-25',descripcion:'Desayuno Granada'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:18.0,fecha:'2026-04-23',descripcion:'Canas'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:18.0,fecha:'2026-04-23',descripcion:'Cañas'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:18.23,fecha:'2026-04-23',descripcion:'80g'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:35.0,fecha:'2026-04-23',descripcion:'Manolitos'},
       {cuenta:'kev',categoria:'Restaurantes',importe:156.9,fecha:'2026-04-22',descripcion:'Filandon'},
@@ -1161,17 +1273,17 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       {cuenta:'kev',categoria:'Restaurantes',importe:28.0,fecha:'2026-04-16',descripcion:'Burguer Alvarito'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:24.0,fecha:'2026-04-16',descripcion:'Sumo'},
       {cuenta:'kev',categoria:'Restaurantes',importe:17.97,fecha:'2026-04-15',descripcion:'Dominos'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.4,fecha:'2026-04-15',descripcion:'Cafes'},
-      {cuenta:'kev',categoria:'Otros Personales',importe:225.0,fecha:'2026-04-14',descripcion:'Moto revision'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.4,fecha:'2026-04-15',descripcion:'Cafés'},
+      {cuenta:'kev',categoria:'Otros Personales',importe:225.0,fecha:'2026-04-14',descripcion:'Moto revisión'},
       {cuenta:'kev',categoria:'Restaurantes',importe:20.5,fecha:'2026-04-12',descripcion:'Ecuatoriano'},
       {cuenta:'kev',categoria:'Restaurantes',importe:11.45,fecha:'2026-04-11',descripcion:''},
-      {cuenta:'kev',categoria:'Restaurantes',importe:31.8,fecha:'2026-04-10',descripcion:'Cena mexicano'},
+      {cuenta:'kev',categoria:'Restaurantes',importe:31.8,fecha:'2026-04-10',descripcion:'Cena mexicano MRKeko'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:5.29,fecha:'2026-04-10',descripcion:'Mini'},
       {cuenta:'kev',categoria:'Restaurantes',importe:3.7,fecha:'2026-04-10',descripcion:''},
       {cuenta:'kev',categoria:'Restaurantes',importe:56.65,fecha:'2026-04-09',descripcion:'Cena divina'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:23.5,fecha:'2026-04-09',descripcion:'Comida'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.85,fecha:'2026-04-09',descripcion:'Cafe fnmt'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:2.0,fecha:'2026-04-07',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.85,fecha:'2026-04-09',descripcion:'Café fnmt'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:2.0,fecha:'2026-04-07',descripcion:'Café'},
       {cuenta:'kev',categoria:'Otros Personales',importe:22.99,fecha:'2026-04-06',descripcion:'Vino'},
       {cuenta:'kev',categoria:'Gimnasio Deporte',importe:17.0,fecha:'2026-04-04',descripcion:'Golf'},
       {cuenta:'kev',categoria:'Viajes',importe:75.0,fecha:'2026-04-03',descripcion:'Smartbox'},
@@ -1183,9 +1295,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       {cuenta:'kev',categoria:'Gasolina Personal',importe:20.0,fecha:'2026-03-28',descripcion:'Tiguan'},
       {cuenta:'kev',categoria:'Restaurantes',importe:3.6,fecha:'2026-03-27',descripcion:''},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:15.84,fecha:'2026-03-26',descripcion:'Moto'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.7,fecha:'2026-03-25',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.7,fecha:'2026-03-25',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:99.0,fecha:'2026-03-22',descripcion:'Tiguan'},
-      {cuenta:'kev',categoria:'Otros Personales',importe:6.0,fecha:'2026-03-22',descripcion:'Rasca'},
+      {cuenta:'kev',categoria:'Otros Personales',importe:6.0,fecha:'2026-03-22',descripcion:'Rasca 11'},
       {cuenta:'kev',categoria:'Restaurantes',importe:9.3,fecha:'2026-03-22',descripcion:''},
       {cuenta:'kev',categoria:'Restaurantes',importe:41.0,fecha:'2026-03-22',descripcion:'Cena Sevilla'},
       {cuenta:'kev',categoria:'Restaurantes',importe:34.8,fecha:'2026-03-22',descripcion:'Copas Sevilla'},
@@ -1208,37 +1320,37 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       {cuenta:'kev',categoria:'Otros Personales',importe:10.0,fecha:'2026-03-05',descripcion:'Amazon'},
       {cuenta:'kev',categoria:'Restaurantes',importe:15.5,fecha:'2026-03-04',descripcion:'Tomar algo Pablin'},
       {cuenta:'kev',categoria:'Otros Personales',importe:76.0,fecha:'2026-03-04',descripcion:'Colonias'},
-      {cuenta:'kev',categoria:'Regalos',importe:42.0,fecha:'2026-03-04',descripcion:'Colonia mama'},
-      {cuenta:'kev',categoria:'Ropa',importe:10.5,fecha:'2026-03-03',descripcion:'Arreglo Pantalon'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.4,fecha:'2026-03-03',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Regalos',importe:42.0,fecha:'2026-03-04',descripcion:'Colonia mamá'},
+      {cuenta:'kev',categoria:'Ropa',importe:10.5,fecha:'2026-03-03',descripcion:'Arreglo Pantalón'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.4,fecha:'2026-03-03',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:8.99,fecha:'2026-03-01',descripcion:'Mini'},
       {cuenta:'kev',categoria:'Ropa',importe:85.0,fecha:'2026-03-01',descripcion:'Camisa scotta'},
       {cuenta:'kev',categoria:'Ropa',importe:140.0,fecha:'2026-02-26',descripcion:'Camisa y chino'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:14.0,fecha:'2026-02-26',descripcion:'Ramen'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.6,fecha:'2026-02-26',descripcion:'Cafe'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:1.9,fecha:'2026-02-25',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.6,fecha:'2026-02-26',descripcion:'Café'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:1.9,fecha:'2026-02-25',descripcion:'Café'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:16.28,fecha:'2026-02-25',descripcion:'Moto'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.8,fecha:'2026-02-23',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:5.8,fecha:'2026-02-23',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Restaurantes',importe:22.7,fecha:'2026-02-21',descripcion:'Galipizza'},
       {cuenta:'kev',categoria:'Restaurantes',importe:31.5,fecha:'2026-02-21',descripcion:'Percebe'},
       {cuenta:'kev',categoria:'Restaurantes',importe:8.4,fecha:'2026-02-20',descripcion:'Vinos'},
       {cuenta:'kev',categoria:'Restaurantes',importe:20.8,fecha:'2026-02-20',descripcion:''},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:6.4,fecha:'2026-02-19',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:6.4,fecha:'2026-02-19',descripcion:'Café'},
       {cuenta:'kev',categoria:'Restaurantes',importe:38.0,fecha:'2026-02-18',descripcion:'Burguer Alvarito'},
       {cuenta:'kev',categoria:'Regalos',importe:10.0,fecha:'2026-02-16',descripcion:'Regalo ABGJ'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.8,fecha:'2026-02-16',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:7.8,fecha:'2026-02-16',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Restaurantes',importe:19.1,fecha:'2026-02-15',descripcion:'Vermut'},
-      {cuenta:'kev',categoria:'Otros Personales',importe:33.0,fecha:'2026-02-15',descripcion:'Cafes'},
+      {cuenta:'kev',categoria:'Otros Personales',importe:33.0,fecha:'2026-02-15',descripcion:'Cafés'},
       {cuenta:'kev',categoria:'Otros Personales',importe:50.0,fecha:'2026-02-13',descripcion:'Peluquero Max'},
       {cuenta:'kev',categoria:'Otros Personales',importe:65.0,fecha:'2026-02-13',descripcion:''},
       {cuenta:'kev',categoria:'Cuidado Personal',importe:16.5,fecha:'2026-02-12',descripcion:'Spray bucal'},
-      {cuenta:'kev',categoria:'Regalos',importe:34.94,fecha:'2026-02-11',descripcion:'Termo y fieltro'},
+      {cuenta:'kev',categoria:'Regalos',importe:34.94,fecha:'2026-02-11',descripcion:'Termo y fieltro sillas'},
       {cuenta:'kev',categoria:'Cafe Oficina',importe:0.85,fecha:'2026-02-10',descripcion:'Snack'},
       {cuenta:'kev',categoria:'Otros Personales',importe:9.0,fecha:'2026-02-09',descripcion:'Etiquetas AU'},
       {cuenta:'kev',categoria:'Ocio',importe:7.4,fecha:'2026-02-06',descripcion:''},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:15.8,fecha:'2026-02-06',descripcion:'Carga Mini'},
       {cuenta:'kev',categoria:'Restaurantes',importe:57.0,fecha:'2026-02-06',descripcion:'Marisco'},
-      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.4,fecha:'2026-02-05',descripcion:'Cafe'},
+      {cuenta:'kev',categoria:'Cafe Oficina',importe:3.4,fecha:'2026-02-05',descripcion:'Café'},
       {cuenta:'kev',categoria:'Restaurantes',importe:40.0,fecha:'2026-02-04',descripcion:'Cena Maruca'},
       {cuenta:'kev',categoria:'Gasolina Personal',importe:80.4,fecha:'2026-02-01',descripcion:'Tiguan'}
     ];
@@ -1276,6 +1388,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
 
     document.getElementById('loginBtn').addEventListener('click', startLogin);
     document.getElementById('sync-btn').addEventListener('click', function(){syncAll();});
+    document.getElementById('renew-btn').addEventListener('click', function(){renewSession();});
     document.getElementById('ybtnL').addEventListener('click', function(){CY--;refresh();});
     document.getElementById('ybtnR').addEventListener('click', function(){CY++;refresh();});
     document.getElementById('nav-nuevo').addEventListener('click', function(){goNav('nuevo');});
@@ -1290,6 +1403,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('btnCancelar').addEventListener('click', cancelEdit);
     document.getElementById('fCuenta').addEventListener('change', function(){buildCatSel(this.value);updateHint();});
     document.getElementById('fCat').addEventListener('change', updateHint);
+    document.getElementById('fFecha').addEventListener('change', updateHint);
     document.getElementById('fYear').addEventListener('change', renderLista);
     document.getElementById('fMes').addEventListener('change', renderLista);
     document.getElementById('fCF').addEventListener('change', renderLista);
@@ -1373,7 +1487,21 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('yearLabel').textContent=CY;
 
     if(checkAuthCallback()){
-      getUserInfo().then(function(){showApp();return initAndLoad();}).then(function(){renderNuevo();});
+      var renewing = localStorage.getItem('jk_renewing');
+      localStorage.removeItem('jk_renewing');
+      getUserInfo().then(function(){
+        showApp();
+        if (renewing) {
+          // Just re-sync, dont reload all data
+          load();
+          seedIfEmpty();
+          setSyncStatus('ok','Sesion renovada');
+          renderNuevo();
+          syncAll();
+        } else {
+          return initAndLoad().then(function(){renderNuevo();});
+        }
+      });
     } else {
       var saved=localStorage.getItem('jk_token');
       var savedTime=parseInt(localStorage.getItem('jk_time')||'0');
