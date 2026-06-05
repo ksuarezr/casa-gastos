@@ -544,7 +544,7 @@ async function getUserInfo(){
     const u = await r.json();
     currentUser = u.name || u.email || 'Usuario';
     document.getElementById('user-badge').textContent = currentUser;
-    // Save to session so refresh doesn't lose login
+    // Save to storage so refresh does not lose login
     localStorage.setItem('jk_token', accessToken);
     localStorage.setItem('jk_user', currentUser);
     localStorage.setItem('jk_time', Date.now().toString());
