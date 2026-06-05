@@ -573,10 +573,10 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     .then(function() { save(); });
   }
 
-  function syncAll() {
+  function syncAll(silent) {
     if (!accessToken) { setSyncStatus('err','No autenticado'); return Promise.resolve(); }
     setSyncStatus('','Sincronizando...');
-    showLoading('Guardando...');
+    if (!silent) showLoading('Guardando...');
     return sheetsClear('Gastos!A:F').then(function() {
       var gRows = [['id','cuenta','categoria','importe','fecha','descripcion']];
       ST.gastos.forEach(function(g) { gRows.push([g.id,g.cuenta,g.categoria,g.importe,g.fecha,g.descripcion||'']); });
@@ -628,6 +628,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         setSyncStatus('err','Error: '+e.message.slice(0,30));
         hideLoading();
       }
+    }).then(function(){
+      if (!silent) hideLoading();
     });
   }
 
@@ -714,7 +716,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     if(!cat||isNaN(imp)||imp<=0||!fecha){alert('Rellena categoria, importe y fecha.');return;}
     if(eid){var idx=ST.gastos.findIndex(function(g){return g.id===eid;});if(idx!==-1)ST.gastos[idx]={id:eid,cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc};}
     else ST.gastos.push({id:uid(),cuenta:cuenta,categoria:cat,importe:imp,fecha:fecha,descripcion:desc});
-    cancelEdit();renderNuevo();syncAll();
+    cancelEdit();
+    renderNuevo();
+    syncAll(true);
   }
 
   function cancelEdit() {
@@ -744,6 +748,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     if(!confirm('Eliminar este gasto?'))return;
     ST.gastos=ST.gastos.filter(function(g){return g.id!==id;});
     renderNuevo();syncAll();
+
   }
 
   function setDbM(m){CM=m;renderDashboard();}
