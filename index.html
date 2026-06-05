@@ -479,13 +479,16 @@ function setSyncStatus(status,msg){
 // GOOGLE AUTH
 // ═══════════════════════════════════════
 function startLogin(){
-  // Use redirect flow — works on all mobile browsers
+  // Clear any saved token to force fresh auth with correct scopes
+  sessionStorage.removeItem('jk_token');
+  sessionStorage.removeItem('jk_user');
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: window.location.origin + window.location.pathname,
     response_type: 'token',
-    scope: SCOPES + ' https://www.googleapis.com/auth/userinfo.profile',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
     include_granted_scopes: 'true',
+    prompt: 'consent',
     state: 'login'
   });
   window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
@@ -662,8 +665,10 @@ async function syncAll(){
     saveLocal();
     setSyncStatus('ok','Sincronizado · '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
   }catch(e){
-    console.error(e);
-    setSyncStatus('err','Error al sincronizar');
+    console.error('Sync error:', e);
+    const msg = e.message||'Error desconocido';
+    setSyncStatus('err','Error: '+msg.slice(0,40));
+    alert('Error al sincronizar:\n'+msg+'\n\nAbre la consola del navegador para más detalles.');
   }
   hideLoading();
 }
