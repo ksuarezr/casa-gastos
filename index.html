@@ -155,7 +155,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   </div>
 </div>
 <div id="app" style="display:none">
-  <div id="sync-bar"><div style="display:flex;align-items:center;gap:7px"><div class="sdot" id="sdot"></div><span id="smsg">Conectando...</span></div><button id="sync-btn">&#8635; Sync</button></div>
+  <div id="sync-bar"><div style="display:flex;align-items:center;gap:7px"><div class="sdot" id="sdot"></div><span id="smsg">Conectando...</span></div><div style="display:flex;gap:6px"><button id="sync-btn">&#8635; Sync</button><button id="renew-btn" title="Renovar sesion si hay error 401" style="background:rgba(255,255,255,.12);border:none;color:var(--paper);padding:3px 10px;border-radius:10px;font-size:.72rem;cursor:pointer;font-family:DM Sans,sans-serif;">&#128274; Login</button></div></div>
   <header>
     <div class="logo">Casa<span>&amp;</span>Gastos</div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -448,6 +448,19 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
   }
 
+  function renewSession() {
+    // Save current path and trigger login without clearing data
+    localStorage.setItem('jk_renewing', '1');
+    var params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: window.location.origin + window.location.pathname,
+      response_type: 'token',
+      scope: SCOPES,
+      include_granted_scopes: 'true',
+      prompt: 'select_account'
+    });
+    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+  }
   function checkAuthCallback() {
     var hash = window.location.hash.substring(1);
     if (!hash) return false;
@@ -553,7 +566,10 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(cfg.regla_kev) try{ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
       if(cfg.aportaciones) try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
       if(cfg.gastos_fijos) try{ST.gastosFijos=JSON.parse(cfg.gastos_fijos);}catch(e){}
-    }).catch(function(e) { console.warn('config',e); })
+    }).catch(function(e) {
+      if (e.message.indexOf('401') !== -1) { renewSession(); return; }
+      console.warn('config',e);
+    })
     .then(function() { save(); });
   }
 
@@ -604,8 +620,15 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       setSyncStatus('ok','Sincronizado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
     }).catch(function(e) {
       console.error(e);
-      setSyncStatus('err','Error: '+e.message.slice(0,30));
-    }).then(function() { hideLoading(); });
+      if (e.message.indexOf('401') !== -1) {
+        setSyncStatus('err','Sesion caducada - renovando...');
+        hideLoading();
+        renewSession();
+      } else {
+        setSyncStatus('err','Error: '+e.message.slice(0,30));
+        hideLoading();
+      }
+    });
   }
 
   function initAndLoad() {
@@ -1276,6 +1299,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
 
     document.getElementById('loginBtn').addEventListener('click', startLogin);
     document.getElementById('sync-btn').addEventListener('click', function(){syncAll();});
+    document.getElementById('renew-btn').addEventListener('click', function(){renewSession();});
     document.getElementById('ybtnL').addEventListener('click', function(){CY--;refresh();});
     document.getElementById('ybtnR').addEventListener('click', function(){CY++;refresh();});
     document.getElementById('nav-nuevo').addEventListener('click', function(){goNav('nuevo');});
@@ -1373,7 +1397,21 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('yearLabel').textContent=CY;
 
     if(checkAuthCallback()){
-      getUserInfo().then(function(){showApp();return initAndLoad();}).then(function(){renderNuevo();});
+      var renewing = localStorage.getItem('jk_renewing');
+      localStorage.removeItem('jk_renewing');
+      getUserInfo().then(function(){
+        showApp();
+        if (renewing) {
+          // Just re-sync, dont reload all data
+          load();
+          seedIfEmpty();
+          setSyncStatus('ok','Sesion renovada');
+          renderNuevo();
+          syncAll();
+        } else {
+          return initAndLoad().then(function(){renderNuevo();});
+        }
+      });
     } else {
       var saved=localStorage.getItem('jk_token');
       var savedTime=parseInt(localStorage.getItem('jk_time')||'0');
