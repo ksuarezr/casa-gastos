@@ -930,7 +930,17 @@ function goNav(id,btn){
     ajustes:renderAjustes,nuevo:renderNuevo})[id]?.();
 }
 function changeYear(d){CY+=d;document.getElementById('yearLabel').textContent=CY;document.getElementById('delY').textContent=CY;refresh();}
-function mbar(elId,active,fn){const el=document.getElementById(elId);if(!el)return;el.innerHTML=MESES.map((m,i)=>`<button class="mbtn${i===active?' on':''}" onclick="${fn}(${i})">${m.slice(0,3)}</button>`).join('');}
+function mbar(elId,active,fn){
+  const el=document.getElementById(elId);if(!el)return;
+  // If already built, just update active class
+  const btns=el.querySelectorAll('.mbtn');
+  if(btns.length===12){
+    btns.forEach((b,i)=>{b.className='mbtn'+(i===active?' on':'');});
+    return;
+  }
+  // Build fresh
+  el.innerHTML=MESES.map((m,i)=>`<button class="mbtn${i===active?' on':''}" onclick="${fn}(${i})">${m.slice(0,3)}</button>`).join('');
+}
 
 // ═══════════════════════════════════════
 // NUEVO GASTO
@@ -1059,7 +1069,14 @@ async function guardarRegla(){
 // ═══════════════════════════════════════
 // CASAS
 // ═══════════════════════════════════════
-function setCasM(m){CM=m;mbar('cas-mbar',CM,'setCasM');renderCasaPanel();}
+function setCasM(m){
+  CM=m;
+  mbar('cas-mbar',CM,'setCasM');
+  renderCasaPanel();
+  // Scroll active month into view
+  const active=document.querySelector('#cas-mbar .mbtn.on');
+  if(active) active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+}
 function renderCasas(){mbar('cas-mbar',CM,'setCasM');renderCasaPanel();}
 function switchCasa(c){aCasa=c;document.getElementById('pmad').className='pill'+(c==='madrid'?' am':'');document.getElementById('past').className='pill'+(c==='asturias'?' aa':'');renderCasaPanel();}
 function renderCasaPanel(){
@@ -1087,7 +1104,13 @@ function renderCasaPanel(){
 // ═══════════════════════════════════════
 // PERSONAL
 // ═══════════════════════════════════════
-function setPerM(m){CM=m;mbar('per-mbar',CM,'setPerM');renderPersPanel();}
+function setPerM(m){
+  CM=m;
+  mbar('per-mbar',CM,'setPerM');
+  renderPersPanel();
+  const active=document.querySelector('#per-mbar .mbtn.on');
+  if(active) active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+}
 function renderPersonal(){mbar('per-mbar',CM,'setPerM');renderPersPanel();}
 function switchPers(p){aPers=p;document.getElementById('pjuls').className='pill'+(p==='juls'?' aj':'');document.getElementById('pkev').className='pill'+(p==='kev'?' ak':'');renderPersPanel();}
 function renderPersPanel(){
