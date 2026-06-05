@@ -247,6 +247,16 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         </div>
         <div class="rgrid" id="ing-regla"></div>
       </div>
+      <div class="stitle">Aportacion teorica a casas</div>
+      <div class="panel" style="padding:15px 17px">
+        <p style="font-size:.78rem;color:#8a8578;margin-bottom:12px">Referencia de cuanto deberia aportar cada uno. Registra la transferencia real como gasto personal con categoria Aportacion Madrid o Aportacion Asturias.</p>
+        <table class="bt" style="margin-bottom:12px">
+          <thead><tr><th>Aportacion</th><th>Teorico</th><th>Ajuste manual</th></tr></thead>
+          <tbody id="aport-body"></tbody>
+        </table>
+        <button class="btn" id="btnAport">Guardar aportaciones</button>
+        <div id="liquido-summary" style="margin-top:14px"></div>
+      </div>
       <div style="text-align:right;margin-top:10px"><button class="btn" id="btnIngresos">Guardar ingresos</button></div>
     </div>
     <div class="sec" id="s-lista">
@@ -323,6 +333,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     ingresos: {},
     budgets: {madrid:{}, asturias:{}},
     budgetPersonal: {},
+    aportaciones: {},
     gastos: []
   };
 
@@ -330,6 +341,13 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   var aCasa = 'madrid', aPers = 'juls', aBSCasa = 'madrid', aBSM = CM;
   var charts = {}, accessToken = null, currentUser = null;
   var activeReglaTab = 'juls';
+  function getAportaciones(y,m) { return ((ST.aportaciones||{})[y]||{})[m]||{km:0,ka:0,jm:0,ja:0}; }
+  function saveAportacion(y,m,key,val) {
+    if (!ST.aportaciones) ST.aportaciones={};
+    if (!ST.aportaciones[y]) ST.aportaciones[y]={};
+    if (!ST.aportaciones[y][m]) ST.aportaciones[y][m]={km:0,ka:0,jm:0,ja:0};
+    ST.aportaciones[y][m][key]=val;
+  }
   function switchReglaTab(p) {
     activeReglaTab = p;
     document.getElementById('rtabJ').className = 'pill' + (p==='juls' ? ' aj' : '');
@@ -515,6 +533,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(cfg.budget_personal) try{ST.budgetPersonal=JSON.parse(cfg.budget_personal);}catch(e){}
       if(cfg.regla_juls) try{ST.regla.juls=JSON.parse(cfg.regla_juls);}catch(e){}
       if(cfg.regla_kev) try{ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
+      if(cfg.aportaciones) try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
     }).catch(function(e) { console.warn('config',e); })
     .then(function() { save(); });
   }
@@ -556,7 +575,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)],
         ['budget_personal',JSON.stringify(ST.budgetPersonal||{})],
         ['regla_juls',JSON.stringify(ST.regla.juls||{nec:50,des:30,aho:20})],
-        ['regla_kev',JSON.stringify(ST.regla.kev||{nec:50,des:30,aho:20})]
+        ['regla_kev',JSON.stringify(ST.regla.kev||{nec:50,des:30,aho:20})],
+        ['aportaciones',JSON.stringify(ST.aportaciones||{})]
       ];
       return sheetsSet('Config!A1', cfgRows);
     }).then(function() {
@@ -839,7 +859,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       var el=document.getElementById(id);
       if(el)el.addEventListener('input',function(){updI();renderRegla('ing-regla');});
     });
-    updI();renderRegla('ing-regla');
+    updI();renderRegla('ing-regla');renderAportaciones();
   }
 
   function updI() {
@@ -849,6 +869,52 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     s('ts_s',js+ks);s('ts_b',jb+kb);s('ts_o',jo+ko);s('ts_j',js+jb+jo);s('ts_k',ks+kb+ko);s('ts_t',js+jb+jo+ks+kb+ko);
   }
 
+  function renderAportaciones() {
+    var ap = getAportaciones(CY,CM);
+    var jInc = incJ(CY,CM), kInc = incK(CY,CM);
+    var rJ = ST.regla.juls||{nec:50}, rK = ST.regla.kev||{nec:50};
+    var jNec = jInc*(rJ.nec/100), kNec = kInc*(rK.nec/100);
+    var rows = [
+      {key:'km', label:ST.nombres.kev+' a Madrid',    teorico:Math.round(kNec*0.6)},
+      {key:'ka', label:ST.nombres.kev+' a Asturias',  teorico:Math.round(kNec*0.4)},
+      {key:'jm', label:ST.nombres.juls+' a Madrid',   teorico:Math.round(jNec*0.6)},
+      {key:'ja', label:ST.nombres.juls+' a Asturias', teorico:Math.round(jNec*0.4)}
+    ];
+    var el = document.getElementById('aport-body');
+    if (!el) return;
+    el.innerHTML = rows.map(function(r) {
+      return '<tr><td>'+r.label+'</td>'+
+        '<td style="color:#8a8578;font-size:.82rem">'+fmt(r.teorico)+'</td>'+
+        '<td><input type="number" id="ap_'+r.key+'" value="'+(ap[r.key]||'')+'" placeholder="'+r.teorico+'" min="0" step="10" inputmode="decimal" style="border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:5px 8px;font-family:DM Sans,sans-serif;font-size:.82rem;background:var(--paper);outline:none;width:110px"></td></tr>';
+    }).join('');
+    var apVals = {
+      km: +(ap.km||rows[0].teorico), ka: +(ap.ka||rows[1].teorico),
+      jm: +(ap.jm||rows[2].teorico), ja: +(ap.ja||rows[3].teorico)
+    };
+    var kAport = apVals.km + apVals.ka, jAport = apVals.jm + apVals.ja;
+    var rKd = ST.regla.kev||{des:30,aho:20}, rJd = ST.regla.juls||{des:30,aho:20};
+    var kLiq = kInc - kAport, jLiq = jInc - jAport;
+    var liqEl = document.getElementById('liquido-summary');
+    if (liqEl) {
+      liqEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">' +
+        liqCard(ST.nombres.kev,'kev',kInc,kAport,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
+        liqCard(ST.nombres.juls,'juls',jInc,jAport,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
+        '</div>';
+    }
+  }
+  function liqCard(nombre,p,ing,aport,liq,persObj,ahoObj) {
+    var col = liq >= 0 ? 'green' : 'red';
+    return '<div class="card '+p+'" style="padding:14px 16px">'+
+      '<div class="clabel">'+nombre+' - Liquido</div>'+
+      '<div class="cval" style="color:var(--'+col+')">'+fmt(liq)+'</div>'+
+      '<div style="font-size:.75rem;color:#8a8578;margin-top:6px;line-height:1.9">'+
+      '<div>Ingresos: <strong>'+fmt(ing)+'</strong></div>'+
+      '<div>Aportacion casas: <strong style="color:var(--rust)">-'+fmt(aport)+'</strong></div>'+
+      '<div style="border-top:1px solid rgba(26,26,46,.08);padding-top:4px;margin-top:3px">'+
+      'Personal obj: <strong>'+fmt(persObj)+'</strong><br>'+
+      'Ahorro obj: <strong>'+fmt(ahoObj)+'</strong></div>'+
+      '</div></div>';
+  }
   function renderLista() {
     var years=ST.gastos.map(function(g){return yOf(g).toString();}).filter(function(v,i,a){return a.indexOf(v)===i;}).sort().reverse();
     if(years.indexOf(String(CY))===-1)years.unshift(String(CY));
@@ -1181,6 +1247,14 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     });
     document.getElementById('rtabJ').addEventListener('click', function(){switchReglaTab('juls');});
     document.getElementById('rtabK').addEventListener('click', function(){switchReglaTab('kev');});
+    document.getElementById('btnAport').addEventListener('click', function(){
+      var keys = ['km','ka','jm','ja'];
+      keys.forEach(function(k){
+        var el = document.getElementById('ap_'+k);
+        if (el) saveAportacion(CY, CM, k, parseFloat(el.value)||0);
+      });
+      syncAll().then(function(){alert('Aportaciones de '+MESES[CM]+' guardadas.');});
+    });
     document.getElementById('btnIngresos').addEventListener('click', function(){
       function g(id){var e=document.getElementById(id);return e?+(e.value||0):0;}
       if(!ST.ingresos[CY])ST.ingresos[CY]={};
