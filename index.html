@@ -426,7 +426,7 @@ const TAB = {
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COL={madrid:'rgba(184,92,56,.82)',asturias:'rgba(90,122,94,.82)',juls:'rgba(123,111,160,.82)',kev:'rgba(58,127,191,.82)'};
 const CATS_CASA=['Alquiler/Hipoteca','Suministros Agua','Suministros Luz y Gas','Telefonía e Internet','Seguro Vehículo','Seguro Hogar','Cuotas y Suscripciones','Mantenimiento Coche','Alarma','Servicio Limpieza','Alimentación','Transporte/Gasolina','Gastos Hogar','IBI','Seguro de Vida','Reparaciones','Viñeta/ITV','Gastos Varios','Otros Casa'];
-const CATS_PERS=['Gimnasio/Deporte','Pilates','Préstamos','Restaurantes','Ropa','Gasolina Personal','Cuidado Personal','Ocio y Entretenimiento','Regalos','Viajes','Libros','Café y Oficina','Comida Oficina','Ahorro','Inversiones','Otros Personales'];
+const CATS_PERS=['Aportación Madrid','Aportación Asturias','Gimnasio/Deporte','Pilates','Préstamos','Restaurantes','Ropa','Gasolina Personal','Cuidado Personal','Ocio y Entretenimiento','Regalos','Viajes','Libros','Café y Oficina','Comida Oficina','Ahorro','Inversiones','Otros Personales'];
 
 // ═══════════════════════════════════════
 // STATE
@@ -434,7 +434,12 @@ const CATS_PERS=['Gimnasio/Deporte','Pilates','Préstamos','Restaurantes','Ropa'
 let ST = {
   nombres:{juls:'Juls',kev:'Kev'},
   cats:{casa:[...CATS_CASA],personal:[...CATS_PERS]},
-  regla:{nec:50,des:30,aho:20},
+  regla:{
+    juls:{nec:50,des:30,aho:20},
+    kev:{nec:50,des:30,aho:20}
+  },
+  aportaciones:{}, // {year:{month:{km,ka,jm,ja}}}
+  gastosFijos:{} // {juls:[{desc,importe}], kev:[{desc,importe}]}
   ingresos:{},
   budgets:{madrid:{},asturias:{}},
   budgetPersonal:{}, // {year:{month:{juls:X, kev:Y}}} manual overrides
@@ -465,12 +470,21 @@ const incJ=(y,m)=>{const i=getInc(y,m);return(+i.js||0)+(+i.jb||0)+(+i.jo||0);};
 const incK=(y,m)=>{const i=getInc(y,m);return(+i.ks||0)+(+i.kb||0)+(+i.ko||0);};
 const incT=(y,m)=>incJ(y,m)+incK(y,m);
 const devcls=(r,b)=>!b?'neu':r/b<.7?'ok':r/b<.9?'warn':'over';
+function getAportaciones(y,m){ return ((ST.aportaciones||{})[y]||{})[m]||{km:0,ka:0,jm:0,ja:0}; }
+function getGastosFijos(persona){ return (ST.gastosFijos||{})[persona]||[]; }
+function totalGastosFijos(persona){ return getGastosFijos(persona).reduce((s,g)=>s+(+g.importe||0),0); }
+function saveAportacion(y,m,key,val){
+  if(!ST.aportaciones)ST.aportaciones={};
+  if(!ST.aportaciones[y])ST.aportaciones[y]={};
+  if(!ST.aportaciones[y][m])ST.aportaciones[y][m]={km:0,ka:0,jm:0,ja:0};
+  ST.aportaciones[y][m][key]=val;
+}
 function getPersonalBudget(persona,y,m){
-  // Manual override takes priority, else auto from regla
   const manual=((ST.budgetPersonal[y]||{})[m]||{})[persona];
   if(manual>0) return {amount:manual, isManual:true};
   const ing=persona==='juls'?incJ(y,m):incK(y,m);
-  return {amount:ing*(ST.regla.des/100), isManual:false};
+  const pct=(ST.regla[persona]||ST.regla.juls||{des:30}).des;
+  return {amount:ing*(pct/100), isManual:false};
 }
 function savePersonalBudget(persona,y,m,val){
   if(!ST.budgetPersonal[y])ST.budgetPersonal[y]={};
@@ -643,6 +657,10 @@ async function loadFromSheets(){
     if(cfg.cats_casa)try{ST.cats.casa=JSON.parse(cfg.cats_casa);}catch(e){}
     if(cfg.cats_pers)try{ST.cats.personal=JSON.parse(cfg.cats_pers);}catch(e){}
     if(cfg.budget_personal)try{ST.budgetPersonal=JSON.parse(cfg.budget_personal);}catch(e){}
+    if(cfg.regla_juls)try{if(!ST.regla.juls)ST.regla={juls:{},kev:{}};ST.regla.juls=JSON.parse(cfg.regla_juls);}catch(e){}
+    if(cfg.regla_kev)try{if(!ST.regla.kev)ST.regla.kev={};ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
+    if(cfg.aportaciones)try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
+    if(cfg.gastos_fijos)try{ST.gastosFijos=JSON.parse(cfg.gastos_fijos);}catch(e){}
   }catch(e){console.warn('config load error',e);}
   saveLocal();
 }
@@ -676,7 +694,11 @@ async function syncAll(){
       ['nombre_juls',ST.nombres.juls],['nombre_kev',ST.nombres.kev],
       ['pct_nec',ST.regla.nec],['pct_des',ST.regla.des],['pct_aho',ST.regla.aho],
       ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)],
-      ['budget_personal',JSON.stringify(ST.budgetPersonal||{})]
+      ['budget_personal',JSON.stringify(ST.budgetPersonal||{})],
+      ['regla_juls',JSON.stringify(ST.regla.juls||{nec:50,des:30,aho:20})],
+      ['regla_kev',JSON.stringify(ST.regla.kev||{nec:50,des:30,aho:20})],
+      ['aportaciones',JSON.stringify(ST.aportaciones||{})],
+      ['gastos_fijos',JSON.stringify(ST.gastosFijos||{})]
     ];
     await sheetsSet(`${TAB.config}!A1`,cfgRows);
     saveLocal();
@@ -1060,13 +1082,17 @@ function renderDashboard(){
 // REGLA
 // ═══════════════════════════════════════
 function renderRegla(cid){
-  const pN=+(document.getElementById('pNec')?.value||ST.regla.nec);
-  const pD=+(document.getElementById('pDes')?.value||ST.regla.des);
-  const pA=+(document.getElementById('pAho')?.value||ST.regla.aho);
-  const ing=incT(CY,CM),g=gastosMes(CY,CM);
-  const rN=sumArr(gastosC(g,'madrid'))+sumArr(gastosC(g,'asturias'));
-  const rD=sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev'));
-  const rA=sumArr(ST.gastos.filter(x=>yOf(x)===CY&&mOf(x)===CM&&x.categoria==='Ahorro'));
+  if(!ST.regla.juls) ST.regla={juls:{nec:50,des:30,aho:20},kev:{nec:50,des:30,aho:20}};
+  const tab=activeReglaTab||'juls';
+  const rObj=ST.regla[tab]||{nec:50,des:30,aho:20};
+  const pN=+(document.getElementById('pNec')?.value||rObj.nec);
+  const pD=+(document.getElementById('pDes')?.value||rObj.des);
+  const pA=+(document.getElementById('pAho')?.value||rObj.aho);
+  const ing=tab==='juls'?incJ(CY,CM):incK(CY,CM);
+  const g=gastosMes(CY,CM);
+  const rN=tab==='juls'?sumArr(gastosC(g,'juls')):sumArr(gastosC(g,'kev')); // personal spending
+  const rD=rN; // same
+  const rA=sumArr(ST.gastos.filter(x=>yOf(x)===CY&&mOf(x)===CM&&x.cuenta===tab&&x.categoria==='Ahorro'));
   function rc(cls,lbl,pct,obj,real,isAho){
     const dev=obj-real;const ok2=isAho?real>=obj:real<=obj;
     const col=ok2?'green':real<=(obj*1.1)?'amber':'red';
@@ -1077,10 +1103,11 @@ function renderRegla(cid){
   if(el)el.innerHTML=rc('','Necesidades',pN,ing*(pN/100),rN,false)+rc('des','Personal',pD,ing*(pD/100),rD,false)+rc('aho','Ahorro',pA,ing*(pA/100),rA,true);
 }
 async function guardarRegla(){
-  ST.regla.nec=+(document.getElementById('pNec').value)||50;
-  ST.regla.des=+(document.getElementById('pDes').value)||30;
-  ST.regla.aho=+(document.getElementById('pAho').value)||20;
-  await syncAll();alert('✅ Regla guardada.');
+  if(!ST.regla.juls) ST.regla={juls:{nec:50,des:30,aho:20},kev:{nec:50,des:30,aho:20}};
+  ST.regla[activeReglaTab].nec=+(document.getElementById('pNec').value)||50;
+  ST.regla[activeReglaTab].des=+(document.getElementById('pDes').value)||30;
+  ST.regla[activeReglaTab].aho=+(document.getElementById('pAho').value)||20;
+  await syncAll();alert(`✅ Regla de ${activeReglaTab==='juls'?ST.nombres.juls:ST.nombres.kev} guardada.`);
 }
 
 // ═══════════════════════════════════════
@@ -1198,18 +1225,151 @@ async function resetBudgetPersonal(persona){
 // INGRESOS
 // ═══════════════════════════════════════
 function setIngM(m){CM=m;renderIngresos();}
+let activeReglaTab='juls';
+function switchReglaTab(p){
+  activeReglaTab=p;
+  document.getElementById('reglaTabJuls').className='pill'+(p==='juls'?' aj':'');
+  document.getElementById('reglaTabKev').className='pill'+(p==='kev'?' ak':'');
+  const r=ST.regla[p]||{nec:50,des:30,aho:20};
+  document.getElementById('pNec').value=r.nec;
+  document.getElementById('pDes').value=r.des;
+  document.getElementById('pAho').value=r.aho;
+  renderRegla('ing-regla');
+}
 function renderIngresos(){
   mbar('ing-mbar',CM,'setIngM');
   const i=getInc(CY,CM);
-  document.getElementById('pNec').value=ST.regla.nec;
-  document.getElementById('pDes').value=ST.regla.des;
-  document.getElementById('pAho').value=ST.regla.aho;
+  if(!ST.regla.juls) ST.regla={juls:{nec:ST.regla.nec||50,des:ST.regla.des||30,aho:ST.regla.aho||20},kev:{nec:ST.regla.nec||50,des:ST.regla.des||30,aho:ST.regla.aho||20}};
+  const r=ST.regla[activeReglaTab]||{nec:50,des:30,aho:20};
+  document.getElementById('pNec').value=r.nec;
+  document.getElementById('pDes').value=r.des;
+  document.getElementById('pAho').value=r.aho;
   document.getElementById('inc-body').innerHTML=`
     <tr><td>💼 Salario</td><td><input class="inctable" type="number" id="i_js" value="${i.js||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td><input class="inctable" type="number" id="i_ks" value="${i.ks||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td id="ts_s" style="font-weight:600"></td></tr>
     <tr><td>🎁 Bonus</td><td><input class="inctable" type="number" id="i_jb" value="${i.jb||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td><input class="inctable" type="number" id="i_kb" value="${i.kb||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td id="ts_b" style="font-weight:600"></td></tr>
     <tr><td>🍽️ Ticket/Otros</td><td><input class="inctable" type="number" id="i_jo" value="${i.jo||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td><input class="inctable" type="number" id="i_ko" value="${i.ko||''}" placeholder="0" step="0.01" inputmode="decimal" oninput="updI()"></td><td id="ts_o" style="font-weight:600"></td></tr>
     <tr style="font-weight:700;background:var(--cream)"><td>TOTAL</td><td id="ts_j"></td><td id="ts_k"></td><td id="ts_t"></td></tr>`;
-  updI();renderRegla('ing-regla');
+  updI();renderRegla('ing-regla');renderAportaciones();renderFijosTab();
+}
+let activeFijosTab='juls';
+function switchFijosTab(p){
+  activeFijosTab=p;
+  document.getElementById('fijosTabJuls').className='pill'+(p==='juls'?' aj':'');
+  document.getElementById('fijosTabKev').className='pill'+(p==='kev'?' ak':'');
+  renderFijosTab();
+}
+function renderFijosTab(){
+  const items=getGastosFijos(activeFijosTab);
+  const total=totalGastosFijos(activeFijosTab);
+  const el=document.getElementById('fijos-list');
+  if(!el) return;
+  el.innerHTML=(items.length?`
+    <table class="bt" style="margin-bottom:8px">
+      <thead><tr><th>Concepto</th><th>€/mes</th><th></th></tr></thead>
+      <tbody>${items.map((g,i)=>`<tr>
+        <td>${g.desc}</td>
+        <td style="font-weight:600">${fmt(g.importe)}</td>
+        <td><button class="btn danger sm" onclick="delGastoFijo(${i})">🗑️</button></td>
+      </tr>`).join('')}
+      <tr class="totrow"><td>TOTAL FIJOS</td><td style="font-weight:700">${fmt(total)}</td><td></td></tr>
+      </tbody>
+    </table>`:'<p style="font-size:.8rem;color:#aaa;margin-bottom:8px">Sin gastos fijos aún.</p>');
+}
+async function addGastoFijo(){
+  const desc=document.getElementById('fijos-desc').value.trim();
+  const imp=parseFloat(document.getElementById('fijos-imp').value)||0;
+  if(!desc||imp<=0){alert('Añade descripción e importe.');return;}
+  if(!ST.gastosFijos)ST.gastosFijos={};
+  if(!ST.gastosFijos[activeFijosTab])ST.gastosFijos[activeFijosTab]=[];
+  ST.gastosFijos[activeFijosTab].push({desc,importe:imp});
+  document.getElementById('fijos-desc').value='';
+  document.getElementById('fijos-imp').value='';
+  renderFijosTab();
+  renderLiquidoPanel();
+  await syncAll();
+}
+async function delGastoFijo(idx){
+  if(!confirm('¿Eliminar este gasto fijo?'))return;
+  ST.gastosFijos[activeFijosTab].splice(idx,1);
+  renderFijosTab();
+  renderLiquidoPanel();
+  await syncAll();
+}
+function renderLiquidoPanel(){
+  // Recalculate liquido for both persons and update aportaciones display
+  renderAportaciones();
+}
+function renderAportaciones(){
+  const ap=getAportaciones(CY,CM);
+  const jInc=incJ(CY,CM), kInc=incK(CY,CM);
+  const rJ=ST.regla.juls||{nec:50};
+  const rK=ST.regla.kev||{nec:50};
+  const jNec=jInc*(rJ.nec/100), kNec=kInc*(rK.nec/100);
+  const rows=[
+    {key:'km', label:`👨 ${ST.nombres.kev} → Madrid`,     teorico:kNec*0.6},
+    {key:'ka', label:`👨 ${ST.nombres.kev} → Asturias`,   teorico:kNec*0.4},
+    {key:'jm', label:`👩 ${ST.nombres.juls} → Madrid`,    teorico:jNec*0.6},
+    {key:'ja', label:`👩 ${ST.nombres.juls} → Asturias`,  teorico:jNec*0.4},
+  ];
+  const el=document.getElementById('aport-body');
+  if(!el) return;
+  // Liquido calculation
+  const apVals={
+    km: ap.km||0, ka: ap.ka||0,
+    jm: ap.jm||0, ja: ap.ja||0
+  };
+  const kAport=(apVals.km||rows[0].teorico)+(apVals.ka||rows[1].teorico);
+  const jAport=(apVals.jm||rows[2].teorico)+(apVals.ja||rows[3].teorico);
+  const kFijos=totalGastosFijos('kev');
+  const jFijos=totalGastosFijos('juls');
+  const rK=ST.regla.kev||{des:30,aho:20};
+  const rJ=ST.regla.juls||{des:30,aho:20};
+  const kLiquido=kInc-kAport-kFijos;
+  const jLiquido=jInc-jAport-jFijos;
+  const kPersonalObj=kInc*(rK.des/100);
+  const kAhorroObj=kInc*(rK.aho/100);
+  const jPersonalObj=jInc*(rJ.des/100);
+  const jAhorroObj=jInc*(rJ.aho/100);
+
+  el.innerHTML=rows.map(r=>`<tr>
+    <td>${r.label}</td>
+    <td style="color:#8a8578;font-size:.82rem">${fmt(r.teorico)} <span style="font-size:.7rem">(ref.)</span></td>
+    <td><input type="number" id="ap_${r.key}" value="${ap[r.key]||''}" placeholder="${Math.round(r.teorico)}" min="0" step="10" inputmode="decimal"
+      style="border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:5px 8px;font-family:'DM Sans',sans-serif;font-size:.82rem;background:var(--paper);outline:none;width:110px"></td>
+  </tr>`).join('');
+
+  // Liquido summary cards
+  const liqEl=document.getElementById('liquido-summary');
+  if(liqEl) liqEl.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+      ${liquidoCard(ST.nombres.kev,'kev',kInc,kAport,kFijos,kLiquido,kPersonalObj,kAhorroObj)}
+      ${liquidoCard(ST.nombres.juls,'juls',jInc,jAport,jFijos,jLiquido,jPersonalObj,jAhorroObj)}
+    </div>`;
+}
+function liquidoCard(nombre,p,ing,aport,fijos,liquido,persObj,ahoObj){
+  const col=liquido>=0?'green':'red';
+  return `<div class="card ${p}" style="padding:14px 16px">
+    <div class="clabel">${nombre} — Líquido real</div>
+    <div class="cval" style="color:var(--${col})">${fmt(liquido)}</div>
+    <div style="font-size:.75rem;color:#8a8578;margin-top:6px;line-height:1.8">
+      <div>💰 Ingresos: <strong>${fmt(ing)}</strong></div>
+      <div>🏠 Aportación casas: <strong style="color:var(--rust)">−${fmt(aport)}</strong></div>
+      <div>📋 Gastos fijos: <strong style="color:var(--rust)">−${fmt(fijos)}</strong></div>
+      <div style="border-top:1px solid rgba(26,26,46,.08);padding-top:4px;margin-top:4px">
+        🎯 Personal objetivo: <strong>${fmt(persObj)}</strong><br>
+        💎 Ahorro objetivo: <strong>${fmt(ahoObj)}</strong>
+      </div>
+    </div>
+  </div>`;
+}
+async function guardarAportaciones(){
+  const keys=['km','ka','jm','ja'];
+  keys.forEach(k=>{
+    const el=document.getElementById(`ap_${k}`);
+    if(el) saveAportacion(CY,CM,k,parseFloat(el.value)||0);
+  });
+  await syncAll();
+  alert(`✅ Aportaciones de ${MESES[CM]} guardadas.`);
 }
 function updI(){
   const g=id=>+(document.getElementById(id)?.value||0);
