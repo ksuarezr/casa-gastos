@@ -271,6 +271,25 @@ tbody td{padding:8px 11px;font-size:.8rem;}
           <button class="btn" id="btnAddFijo">Anadir</button>
         </div>
       </div>
+      <div class="stitle">Ahorro e Inversiones del mes</div>
+      <div class="panel" style="padding:15px 17px">
+        <p style="font-size:.78rem;color:#8a8578;margin-bottom:12px">Registra cuanto ha ahorrado e invertido cada uno este mes. Cuenta para el % de ahorro de la regla.</p>
+        <table class="inctable">
+          <thead><tr><th>Concepto</th><th id="ahoLblJ">Juls</th><th id="ahoLblK">Kev</th><th>Total</th></tr></thead>
+          <tbody>
+            <tr><td>&#128176; Ahorro</td>
+              <td><input class="inctable" type="number" id="aho_j" placeholder="0" step="0.01" inputmode="decimal"></td>
+              <td><input class="inctable" type="number" id="aho_k" placeholder="0" step="0.01" inputmode="decimal"></td>
+              <td id="aho_t" style="font-weight:600"></td></tr>
+            <tr><td>&#128200; Inversiones</td>
+              <td><input class="inctable" type="number" id="inv_j" placeholder="0" step="0.01" inputmode="decimal"></td>
+              <td><input class="inctable" type="number" id="inv_k" placeholder="0" step="0.01" inputmode="decimal"></td>
+              <td id="inv_t" style="font-weight:600"></td></tr>
+            <tr style="font-weight:700;background:var(--cream)"><td>TOTAL</td><td id="aho_jt"></td><td id="aho_kt"></td><td id="aho_tt"></td></tr>
+          </tbody>
+        </table>
+        <button class="btn" style="margin-top:12px" id="btnGuardarAhorro">&#128190; Registrar como gasto</button>
+      </div>
       <div style="text-align:right;margin-top:10px"><button class="btn" id="btnIngresos">Guardar ingresos</button></div>
     </div>
     <div class="sec" id="s-lista">
@@ -873,7 +892,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var g=gastosMes(CY,CM);
     var rN = isDash ? sumArr(gastosC(g,'madrid'))+sumArr(gastosC(g,'asturias')) : sumArr(gastosC(g,tab));
     var rD = isDash ? sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev')) : sumArr(gastosC(g,tab));
-    var rA=sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===CM&&x.categoria==='Ahorro';}));
+    var rA=sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===CM&&(x.categoria==='Ahorro'||x.categoria==='Inversiones');}));
     function rc(cls,lbl,pct,obj,real,isAho) {
       var dev=obj-real,ok2=isAho?real>=obj:real<=obj;
       var col=ok2?'green':real<=(obj*1.1)?'amber':'red';
@@ -920,7 +939,12 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function renderPersonal(){mbar('per-mbar',CM,'setPerM');renderPersPanel();}
 
   function renderPersPanel() {
-    var g=gastosMes(CY,CM).filter(function(x){return x.cuenta===aPers;}),tot=sumArr(g);
+    var g=gastosMes(CY,CM).filter(function(x){return x.cuenta===aPers;});
+    var AHORRO_CATS=['Ahorro','Inversiones'];
+    var gGastos=g.filter(function(x){return AHORRO_CATS.indexOf(x.categoria)===-1;});
+    var gAhorro=g.filter(function(x){return AHORRO_CATS.indexOf(x.categoria)!==-1;});
+    var tot=sumArr(gGastos);
+    var totAhorro=sumArr(gAhorro);
     var ing=aPers==='juls'?incJ(CY,CM):incK(CY,CM);
     var incRaw=getInc(CY,CM);
     var tickets=aPers==='juls'?(+incRaw.jo||0):(+incRaw.ko||0);
@@ -931,10 +955,20 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var pb=getPersonalBudget(aPers,CY,CM),budgetAmt=pb.amount,isManual=pb.isManual;
     var pct=budgetAmt?Math.min(110,tot/budgetAmt*100):0,cls=budgetAmt?devcls(tot,budgetAmt):'neu';
     var dev=budgetAmt-tot,devCol=cls==='ok'?'green':cls==='warn'?'amber':'red';
-    var cm={};g.forEach(function(x){cm[x.categoria]=(cm[x.categoria]||0)+x.importe;});
+
+    var cm={};gGastos.forEach(function(x){cm[x.categoria]=(cm[x.categoria]||0)+x.importe;});
+    var cmA={};gAhorro.forEach(function(x){cmA[x.categoria]=(cmA[x.categoria]||0)+x.importe;});
     var catR=Object.entries(cm).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td>'+e[0]+'</td><td style="font-weight:600">'+fmt(e[1])+'</td></tr>';}).join('');
-    var txnR=g.slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).map(function(x){return '<tr><td>'+fmtD(x.fecha)+'</td><td>'+x.categoria+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">X</button></td></tr>';}).join('');
-    var anual=sumArr(gastosAnyo(CY).filter(function(x){return x.cuenta===aPers;}));
+    var catAR=Object.entries(cmA).map(function(e){return '<tr style="background:rgba(39,169,108,.05)"><td><span style="color:var(--green);font-size:.7rem;font-weight:700">AHORRO</span> '+e[0]+'</td><td style="font-weight:600;color:var(--green)">'+fmt(e[1])+'</td></tr>';}).join('');
+    var txnR=g.slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).map(function(x){
+      var isAho=AHORRO_CATS.indexOf(x.categoria)!==-1;
+      var rowStyle=isAho?'background:rgba(39,169,108,.05)':'';
+      var catLabel=isAho?'<span style="color:var(--green);font-size:.68rem;font-weight:700">AHORRO</span> '+x.categoria:x.categoria;
+      var amtStyle=isAho?'font-weight:600;color:var(--green)':'font-weight:600';
+      return '<tr style="'+rowStyle+'"><td>'+fmtD(x.fecha)+'</td><td>'+catLabel+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="'+amtStyle+'">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">X</button></td></tr>';
+    }).join('');
+    var anual=sumArr(gastosAnyo(CY).filter(function(x){return x.cuenta===aPers&&AHORRO_CATS.indexOf(x.categoria)===-1;}));
+    var anualAhorro=sumArr(gastosAnyo(CY).filter(function(x){return x.cuenta===aPers&&AHORRO_CATS.indexOf(x.categoria)!==-1;}));
     var progHtml=budgetAmt?'<div class="pw '+cls+'" style="margin-top:4px"><div class="pbg" style="height:8px"><div class="pfill" style="width:'+Math.min(100,pct).toFixed(0)+'%"></div></div><span class="pp">'+Math.round(pct)+'%</span></div>':'';
     var devHtml=budgetAmt?'<div style="color:var(--'+devCol+');margin-top:3px;font-size:.78rem;font-weight:700">'+(dev>=0?'Margen '+fmt(dev):'Excedido '+fmt(-dev))+'</div>':'';
     var manualVal=((ST.budgetPersonal[CY]||{})[CM]||{})[aPers]||'';
@@ -947,7 +981,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       '<button class="btn sm" id="btnBP">OK</button>'+(isManual?'<button class="btn sec sm" id="btnBPReset">Auto</button>':'')+'</div></div>'+
       '<div class="card ok2"><div class="clabel">Disponible real</div><div class="cval">'+fmt(liquido-tot)+'</div>'+
       '<div class="csub">Liquido '+fmt(liquido)+' - Gastado '+fmt(tot)+'</div></div>'+
-      '<div class="card dark"><div class="clabel">Total '+CY+'</div><div class="cval">'+fmt(anual)+'</div><div class="csub">Ano completo</div></div>'+
+      '<div class="card" style="border-left-color:var(--green)"><div class="clabel">Ahorro + Inversion</div><div class="cval" style="color:var(--green)">'+fmt(totAhorro)+'</div><div class="csub">Ano: '+fmt(anualAhorro)+'</div></div>'+
+      '<div class="card dark"><div class="clabel">Gasto '+CY+'</div><div class="cval">'+fmt(anual)+'</div><div class="csub">Sin ahorro</div></div>'+
       '</div>'+
       '<div style="display:flex;gap:11px;flex-wrap:wrap">'+
       '<div class="panel" style="flex:1;min-width:200px"><div class="phead"><h3>Por categoria</h3></div><table class="bt"><thead><tr><th>Categoria</th><th>Importe</th></tr></thead><tbody>'+(catR||'<tr><td colspan="2" class="empty">Sin gastos</td></tr>')+'</tbody></table></div>'+
@@ -1127,7 +1162,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     dChart('bc');var bce=document.getElementById('ch-bc');
     if(bce)charts['bc']=new Chart(bce.getContext('2d'),{type:'bar',data:{labels:['Madrid','Asturias',n.juls,n.kev],datasets:[{data:['madrid','asturias','juls','kev'].map(function(c){return sumArr(gastosC(g,c));}),backgroundColor:Object.values(COL),borderRadius:7}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('bcat');var bcate=document.getElementById('ch-bcat');
-    var cm={};g.forEach(function(x){cm[x.categoria]=(cm[x.categoria]||0)+x.importe;});
+
     var sorted=Object.entries(cm).sort(function(a,b){return b[1]-a[1];}).slice(0,9);
     if(bcate)charts['bcat']=new Chart(bcate.getContext('2d'),{type:'bar',data:{labels:sorted.map(function(e){return e[0];}),datasets:[{data:sorted.map(function(e){return e[1];}),backgroundColor:'rgba(90,122,94,.8)',borderRadius:5}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('ldet');var lde=document.getElementById('ch-ldet');
@@ -1264,6 +1299,32 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         if (el) saveAportacion(CY, CM, k, parseFloat(el.value)||0);
       });
       syncAll().then(function(){alert('Aportaciones de '+MESES[CM]+' guardadas.');});
+    });
+    // Ahorro input updates
+    ['aho_j','aho_k','inv_j','inv_k'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.addEventListener('input', function(){
+        function g(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+        var aj=g('aho_j'),ak=g('aho_k'),ij=g('inv_j'),ik=g('inv_k');
+        function s(i,v){var e=document.getElementById(i);if(e)e.textContent=fmt(v);}
+        s('aho_t',aj+ak); s('inv_t',ij+ik);
+        s('aho_jt',aj+ij); s('aho_kt',ak+ik); s('aho_tt',aj+ak+ij+ik);
+      });
+    });
+    document.getElementById('btnGuardarAhorro').addEventListener('click', function(){
+      function g(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+      var aj=g('aho_j'),ak=g('aho_k'),ij=g('inv_j'),ik=g('inv_k');
+      var today=new Date().toISOString().slice(0,10);
+      var nuevos=[];
+      if(aj>0) nuevos.push({id:uid(),cuenta:'juls',categoria:'Ahorro',importe:aj,fecha:today,descripcion:'Ahorro '+MESES[CM]});
+      if(ak>0) nuevos.push({id:uid(),cuenta:'kev',categoria:'Ahorro',importe:ak,fecha:today,descripcion:'Ahorro '+MESES[CM]});
+      if(ij>0) nuevos.push({id:uid(),cuenta:'juls',categoria:'Inversiones',importe:ij,fecha:today,descripcion:'Inversion '+MESES[CM]});
+      if(ik>0) nuevos.push({id:uid(),cuenta:'kev',categoria:'Inversiones',importe:ik,fecha:today,descripcion:'Inversion '+MESES[CM]});
+      if(!nuevos.length){alert('Introduce algun importe.');return;}
+      nuevos.forEach(function(g){ST.gastos.push(g);save();fastSaveGasto(g);});
+      ['aho_j','aho_k','inv_j','inv_k'].forEach(function(i){var e=document.getElementById(i);if(e)e.value='';});
+      ['aho_t','inv_t','aho_jt','aho_kt','aho_tt'].forEach(function(i){var e=document.getElementById(i);if(e)e.textContent='';});
+      alert('Ahorro e inversiones registrados.');
     });
     document.getElementById('btnIngresos').addEventListener('click', function(){
       function g(id){var e=document.getElementById(id);return e?+(e.value||0):0;}
