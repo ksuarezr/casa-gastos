@@ -447,6 +447,7 @@ let ST = {
 };
 let CY=2026, CM=new Date().getMonth();
 let aCasa='madrid', aPers='juls', aBSCasa='madrid', aBSM=CM;
+let activeReglaTab='juls', activeFijosTab='juls';
 let charts={};
 let accessToken=null;
 let currentUser=null;
@@ -1083,16 +1084,17 @@ function renderDashboard(){
 // ═══════════════════════════════════════
 function renderRegla(cid){
   if(!ST.regla.juls) ST.regla={juls:{nec:50,des:30,aho:20},kev:{nec:50,des:30,aho:20}};
-  const tab=activeReglaTab||'juls';
-  const rObj=ST.regla[tab]||{nec:50,des:30,aho:20};
-  const pN=+(document.getElementById('pNec')?.value||rObj.nec);
-  const pD=+(document.getElementById('pDes')?.value||rObj.des);
-  const pA=+(document.getElementById('pAho')?.value||rObj.aho);
-  const ing=tab==='juls'?incJ(CY,CM):incK(CY,CM);
+  const tab=(typeof activeReglaTab!=='undefined'?activeReglaTab:null)||'juls';
+  const rObj=isDash?{nec:50,des:30,aho:20}:(ST.regla[tab]||{nec:50,des:30,aho:20});
+  const pN=isDash?rObj.nec:+(document.getElementById('pNec')?.value||rObj.nec);
+  const pD=isDash?rObj.des:+(document.getElementById('pDes')?.value||rObj.des);
+  const pA=isDash?rObj.aho:+(document.getElementById('pAho')?.value||rObj.aho);
+  const isDash=cid==='db-regla';
+  const ing=isDash?incT(CY,CM):(tab==='juls'?incJ(CY,CM):incK(CY,CM));
   const g=gastosMes(CY,CM);
-  const rN=tab==='juls'?sumArr(gastosC(g,'juls')):sumArr(gastosC(g,'kev')); // personal spending
-  const rD=rN; // same
-  const rA=sumArr(ST.gastos.filter(x=>yOf(x)===CY&&mOf(x)===CM&&x.cuenta===tab&&x.categoria==='Ahorro'));
+  const rN=isDash?(sumArr(gastosC(g,'madrid'))+sumArr(gastosC(g,'asturias'))):(tab==='juls'?sumArr(gastosC(g,'juls')):sumArr(gastosC(g,'kev')));
+  const rD=isDash?(sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev'))):(sumArr(gastosC(g,tab)));
+  const rA=sumArr(ST.gastos.filter(x=>yOf(x)===CY&&mOf(x)===CM&&x.categoria==='Ahorro'));
   function rc(cls,lbl,pct,obj,real,isAho){
     const dev=obj-real;const ok2=isAho?real>=obj:real<=obj;
     const col=ok2?'green':real<=(obj*1.1)?'amber':'red';
@@ -1225,7 +1227,6 @@ async function resetBudgetPersonal(persona){
 // INGRESOS
 // ═══════════════════════════════════════
 function setIngM(m){CM=m;renderIngresos();}
-let activeReglaTab='juls';
 function switchReglaTab(p){
   activeReglaTab=p;
   document.getElementById('reglaTabJuls').className='pill'+(p==='juls'?' aj':'');
@@ -1251,7 +1252,6 @@ function renderIngresos(){
     <tr style="font-weight:700;background:var(--cream)"><td>TOTAL</td><td id="ts_j"></td><td id="ts_k"></td><td id="ts_t"></td></tr>`;
   updI();renderRegla('ing-regla');renderAportaciones();renderFijosTab();
 }
-let activeFijosTab='juls';
 function switchFijosTab(p){
   activeFijosTab=p;
   document.getElementById('fijosTabJuls').className='pill'+(p==='juls'?' aj':'');
