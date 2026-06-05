@@ -897,7 +897,10 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var rN_juls = (+(apNow.jm||0))+(+(apNow.ja||0))+totalFijos('juls');
     var rN_kev  = (+(apNow.km||0))+(+(apNow.ka||0))+totalFijos('kev');
     var rN = isDash ? (rN_juls+rN_kev) : (tab==='juls' ? rN_juls : rN_kev);
-    var rD = isDash ? sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev')) : sumArr(gastosC(g,tab));
+    // Personal real = gastos personales sin ahorro ni inversiones
+    var ANOCAT = ['Ahorro','Inversiones'];
+    var gSinAho = g.filter(function(x){return ANOCAT.indexOf(x.categoria)===-1;});
+    var rD = isDash ? sumArr(gastosC(gSinAho,'juls'))+sumArr(gastosC(gSinAho,'kev')) : sumArr(gastosC(gSinAho,tab));
     var rA=sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===CM&&(x.categoria==='Ahorro'||x.categoria==='Inversiones');}));
     function rc(cls,lbl,pct,obj,real,isAho) {
       var dev=obj-real,ok2=isAho?real>=obj:real<=obj;
