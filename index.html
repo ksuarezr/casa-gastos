@@ -455,9 +455,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function getPersonalBudget(p,y,m) {
     var manual = ((ST.budgetPersonal[y]||{})[m]||{})[p];
     if (manual>0) return {amount:manual, isManual:true};
-    var ing = p==='juls' ? incJ(y,m) : incK(y,m);
+    // Base = salary + bonus only, same as ingresos section
+    var raw = getInc(y,m);
+    var base = p==='juls' ? ((+raw.js||0)+(+raw.jb||0)) : ((+raw.ks||0)+(+raw.kb||0));
     var pct = (ST.regla[p]||{des:30}).des;
-    return {amount: ing*(pct/100), isManual:false};
+    return {amount: base*(pct/100), isManual:false};
   }
 
   function showLoading(msg) { document.getElementById('loading').style.display='flex'; document.getElementById('loading-msg').textContent=msg||'Cargando...'; }
