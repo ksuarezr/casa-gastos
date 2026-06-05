@@ -437,6 +437,7 @@ let ST = {
   regla:{nec:50,des:30,aho:20},
   ingresos:{},
   budgets:{madrid:{},asturias:{}},
+  budgetPersonal:{}, // {year:{month:{juls:X, kev:Y}}} manual overrides
   gastos:[]
 };
 let CY=2026, CM=new Date().getMonth();
@@ -464,6 +465,19 @@ const incJ=(y,m)=>{const i=getInc(y,m);return(+i.js||0)+(+i.jb||0)+(+i.jo||0);};
 const incK=(y,m)=>{const i=getInc(y,m);return(+i.ks||0)+(+i.kb||0)+(+i.ko||0);};
 const incT=(y,m)=>incJ(y,m)+incK(y,m);
 const devcls=(r,b)=>!b?'neu':r/b<.7?'ok':r/b<.9?'warn':'over';
+function getPersonalBudget(persona,y,m){
+  // Manual override takes priority, else auto from regla
+  const manual=((ST.budgetPersonal[y]||{})[m]||{})[persona];
+  if(manual>0) return {amount:manual, isManual:true};
+  const ing=persona==='juls'?incJ(y,m):incK(y,m);
+  return {amount:ing*(ST.regla.des/100), isManual:false};
+}
+function savePersonalBudget(persona,y,m,val){
+  if(!ST.budgetPersonal[y])ST.budgetPersonal[y]={};
+  if(!ST.budgetPersonal[y][m])ST.budgetPersonal[y][m]={};
+  if(val>0) ST.budgetPersonal[y][m][persona]=val;
+  else delete ST.budgetPersonal[y][m][persona];
+}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 function showLoading(msg='Cargando...'){document.getElementById('loading').style.display='flex';document.getElementById('loading-msg').textContent=msg;}
@@ -627,6 +641,7 @@ async function loadFromSheets(){
     if(cfg.pct_aho)ST.regla.aho=+cfg.pct_aho;
     if(cfg.cats_casa)try{ST.cats.casa=JSON.parse(cfg.cats_casa);}catch(e){}
     if(cfg.cats_pers)try{ST.cats.personal=JSON.parse(cfg.cats_pers);}catch(e){}
+    if(cfg.budget_personal)try{ST.budgetPersonal=JSON.parse(cfg.budget_personal);}catch(e){}
   }catch(e){console.warn('config load error',e);}
   saveLocal();
 }
@@ -659,7 +674,8 @@ async function syncAll(){
     const cfgRows=[['key','value'],
       ['nombre_juls',ST.nombres.juls],['nombre_kev',ST.nombres.kev],
       ['pct_nec',ST.regla.nec],['pct_des',ST.regla.des],['pct_aho',ST.regla.aho],
-      ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)]
+      ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)],
+      ['budget_personal',JSON.stringify(ST.budgetPersonal||{})]
     ];
     await sheetsSet(`${TAB.config}!A1`,cfgRows);
     saveLocal();
@@ -1116,20 +1132,80 @@ function switchPers(p){aPers=p;document.getElementById('pjuls').className='pill'
 function renderPersPanel(){
   const g=gastosMes(CY,CM).filter(x=>x.cuenta===aPers),tot=sumArr(g);
   const ing=aPers==='juls'?incJ(CY,CM):incK(CY,CM);
+  const {amount:budgetAmt, isManual} = getPersonalBudget(aPers,CY,CM);
+  const pct=budgetAmt?Math.min(110,tot/budgetAmt*100):0;
+  const cls=budgetAmt?devcls(tot,budgetAmt):'neu';
+  const dev=budgetAmt-tot;
+  const devColor=cls==='ok'?'green':cls==='warn'?'amber':'red';
+
   const cm={};g.forEach(x=>{cm[x.categoria]=(cm[x.categoria]||0)+x.importe;});
-  const catR=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td>${c}</td><td style="font-weight:600">${fmt(v)}</td></tr>`).join('');
+  const catR=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,v])=>{
+    const cp=budgetAmt?Math.min(110,v/budgetAmt*100):0;
+    return `<tr><td>${c}</td><td style="font-weight:600">${fmt(v)}</td><td style="color:#8a8578;font-size:.75rem">${budgetAmt?Math.round(cp)+'%':''}</td></tr>`;
+  }).join('');
   const txnR=[...g].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).map(x=>`<tr><td>${fmtD(x.fecha)}</td><td>${x.categoria}</td><td style="color:#8a8578">${x.descripcion||'—'}</td><td style="font-weight:600">${fmt(x.importe)}</td><td style="display:flex;gap:3px"><button class="btn sec sm" onclick="editGasto('${x.id}')">✏️</button><button class="btn danger sm" onclick="delGasto('${x.id}')">🗑️</button></td></tr>`).join('');
   const anual=sumArr(gastosAnyo(CY).filter(x=>x.cuenta===aPers));
+
+  // Budget bar
+  const progHtml=budgetAmt?`<div class="pw ${cls}" style="margin-top:4px"><div class="pbg" style="height:8px"><div class="pfill" style="width:${Math.min(100,pct).toFixed(0)}%"></div></div><span class="pp">${Math.round(pct)}%</span></div>`:'';
+  const devHtml=budgetAmt?`<div class="rdev" style="color:var(--${devColor});margin-top:3px;font-size:.78rem;font-weight:700">${dev>=0?'▼ Margen '+fmt(dev):'▲ Excedido '+fmt(-dev)}</div>`:'';
+
   document.getElementById('pers-panel').innerHTML=`
     <div class="crow" style="margin-bottom:11px">
-      <div class="card ${aPers}"><div class="clabel">Gastado ${MESES[CM]}</div><div class="cval">${fmt(tot)}</div><div class="csub">Ingresos: ${fmt(ing)}</div></div>
+      <div class="card ${aPers}">
+        <div class="clabel">Gastado ${MESES[CM]}</div>
+        <div class="cval">${fmt(tot)}</div>
+        ${progHtml}
+        ${devHtml}
+      </div>
+      <div class="card" style="border-left-color:var(--gold)">
+        <div class="clabel">Presupuesto personal</div>
+        <div class="cval">${fmt(budgetAmt)}</div>
+        <div class="csub">${isManual?'✏️ Manual':'Auto ('+ST.regla.des+'% ingresos)'}</div>
+        <button class="btn sec sm" style="margin-top:6px" onclick="showBudgetEdit('${aPers}')">Ajustar</button>
+      </div>
       <div class="card ok2"><div class="clabel">Disponible</div><div class="cval">${fmt(ing-tot)}</div><div class="csub">Saldo mes</div></div>
       <div class="card dark"><div class="clabel">Total ${CY}</div><div class="cval">${fmt(anual)}</div><div class="csub">Año completo</div></div>
     </div>
+    <div id="budget-edit-${aPers}" style="display:none;margin-bottom:11px"></div>
     <div style="display:flex;gap:11px;flex-wrap:wrap">
-      <div class="panel" style="flex:1;min-width:200px"><div class="phead"><h3>Por categoría</h3></div><table class="bt"><thead><tr><th>Categoría</th><th>€</th></tr></thead><tbody>${catR||'<tr><td colspan="2" class="empty">Sin gastos</td></tr>'}</tbody></table></div>
+      <div class="panel" style="flex:1;min-width:200px"><div class="phead"><h3>Por categoría</h3></div><table class="bt"><thead><tr><th>Categoría</th><th>€</th><th>% presup.</th></tr></thead><tbody>${catR||'<tr><td colspan="3" class="empty">Sin gastos</td></tr>'}</tbody></table></div>
       <div class="tw" style="flex:2;min-width:270px"><div class="twh"><h3>Movimientos</h3></div><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Desc.</th><th>€</th><th></th></tr></thead><tbody>${txnR||'<tr><td colspan="5" class="empty">Sin gastos</td></tr>'}</tbody></table></div>
     </div>`;
+}
+
+function showBudgetEdit(persona){
+  const divId=`budget-edit-${persona}`;
+  const div=document.getElementById(divId);
+  if(!div) return;
+  if(div.style.display!=='none'){div.style.display='none';return;}
+  const {amount, isManual}=getPersonalBudget(persona,CY,CM);
+  const manualVal=((ST.budgetPersonal[CY]||{})[CM]||{})[persona]||'';
+  div.style.display='block';
+  div.innerHTML=`<div class="fcard" style="margin-bottom:0;padding:14px 16px">
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+      <div class="field">
+        <label>Presupuesto manual ${MESES[CM]} — ${persona==='juls'?ST.nombres.juls:ST.nombres.kev}</label>
+        <input type="number" id="bp_input_${persona}" value="${manualVal}" placeholder="Dejar vacío = auto (${fmt(amount)})" min="0" step="10" inputmode="decimal" style="width:220px">
+      </div>
+      <button class="btn" onclick="guardarBudgetPersonal('${persona}')">💾 Guardar</button>
+      <button class="btn sec" onclick="resetBudgetPersonal('${persona}')">↩ Reset auto</button>
+    </div>
+    <p style="font-size:.74rem;color:#8a8578;margin-top:8px">Auto = ${fmt((persona==='juls'?incJ(CY,CM):incK(CY,CM))*(ST.regla.des/100))} (${ST.regla.des}% de ${fmt(persona==='juls'?incJ(CY,CM):incK(CY,CM))})</p>
+  </div>`;
+}
+
+async function guardarBudgetPersonal(persona){
+  const val=parseFloat(document.getElementById(`bp_input_${persona}`)?.value)||0;
+  savePersonalBudget(persona,CY,CM,val);
+  await syncAll();
+  renderPersPanel();
+}
+
+async function resetBudgetPersonal(persona){
+  savePersonalBudget(persona,CY,CM,0);
+  await syncAll();
+  renderPersPanel();
 }
 
 // ═══════════════════════════════════════
