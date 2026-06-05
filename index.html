@@ -1162,41 +1162,26 @@ function renderPersPanel(){
         <div class="clabel">Presupuesto personal</div>
         <div class="cval">${fmt(budgetAmt)}</div>
         <div class="csub">${isManual?'✏️ Manual':'Auto ('+ST.regla.des+'% ingresos)'}</div>
-        <button class="btn sec sm" style="margin-top:6px" onclick="showBudgetEdit('${aPers}')">Ajustar</button>
+        <div style="display:flex;gap:5px;margin-top:8px;align-items:center">
+          <input type="number" id="bp_inline" value="${((ST.budgetPersonal[CY]||{})[CM]||{})[aPers]||''}"
+            placeholder="${Math.round(budgetAmt)}" min="0" step="10" inputmode="decimal"
+            style="border:1.5px solid rgba(26,26,46,.15);border-radius:6px;padding:5px 7px;font-family:'DM Sans',sans-serif;font-size:.82rem;background:var(--paper);outline:none;width:90px">
+          <button class="btn sm" onclick="guardarBudgetPersonal('${aPers}')">💾</button>
+          ${isManual?`<button class="btn sec sm" onclick="resetBudgetPersonal('${aPers}')">↩</button>`:''}
+        </div>
       </div>
       <div class="card ok2"><div class="clabel">Disponible</div><div class="cval">${fmt(ing-tot)}</div><div class="csub">Saldo mes</div></div>
       <div class="card dark"><div class="clabel">Total ${CY}</div><div class="cval">${fmt(anual)}</div><div class="csub">Año completo</div></div>
     </div>
-    <div id="budget-edit-${aPers}" style="display:none;margin-bottom:11px"></div>
     <div style="display:flex;gap:11px;flex-wrap:wrap">
       <div class="panel" style="flex:1;min-width:200px"><div class="phead"><h3>Por categoría</h3></div><table class="bt"><thead><tr><th>Categoría</th><th>€</th><th>% presup.</th></tr></thead><tbody>${catR||'<tr><td colspan="3" class="empty">Sin gastos</td></tr>'}</tbody></table></div>
       <div class="tw" style="flex:2;min-width:270px"><div class="twh"><h3>Movimientos</h3></div><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Desc.</th><th>€</th><th></th></tr></thead><tbody>${txnR||'<tr><td colspan="5" class="empty">Sin gastos</td></tr>'}</tbody></table></div>
     </div>`;
 }
 
-function showBudgetEdit(persona){
-  const divId=`budget-edit-${persona}`;
-  const div=document.getElementById(divId);
-  if(!div) return;
-  if(div.style.display!=='none'){div.style.display='none';return;}
-  const {amount, isManual}=getPersonalBudget(persona,CY,CM);
-  const manualVal=((ST.budgetPersonal[CY]||{})[CM]||{})[persona]||'';
-  div.style.display='block';
-  div.innerHTML=`<div class="fcard" style="margin-bottom:0;padding:14px 16px">
-    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
-      <div class="field">
-        <label>Presupuesto manual ${MESES[CM]} — ${persona==='juls'?ST.nombres.juls:ST.nombres.kev}</label>
-        <input type="number" id="bp_input_${persona}" value="${manualVal}" placeholder="Dejar vacío = auto (${fmt(amount)})" min="0" step="10" inputmode="decimal" style="width:220px">
-      </div>
-      <button class="btn" onclick="guardarBudgetPersonal('${persona}')">💾 Guardar</button>
-      <button class="btn sec" onclick="resetBudgetPersonal('${persona}')">↩ Reset auto</button>
-    </div>
-    <p style="font-size:.74rem;color:#8a8578;margin-top:8px">Auto = ${fmt((persona==='juls'?incJ(CY,CM):incK(CY,CM))*(ST.regla.des/100))} (${ST.regla.des}% de ${fmt(persona==='juls'?incJ(CY,CM):incK(CY,CM))})</p>
-  </div>`;
-}
 
 async function guardarBudgetPersonal(persona){
-  const val=parseFloat(document.getElementById(`bp_input_${persona}`)?.value)||0;
+  const val=parseFloat(document.getElementById('bp_inline')?.value)||0;
   savePersonalBudget(persona,CY,CM,val);
   await syncAll();
   renderPersPanel();
