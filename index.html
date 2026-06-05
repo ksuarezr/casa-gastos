@@ -892,7 +892,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var ingKev  = (+incRaw2.ks||0) + (+incRaw2.kb||0);
     var ing = isDash ? (ingJuls + ingKev) : (tab==='juls' ? ingJuls : ingKev);
     var g=gastosMes(CY,CM);
-    var rN = isDash ? sumArr(gastosC(g,'madrid'))+sumArr(gastosC(g,'asturias')) : sumArr(gastosC(g,tab));
+    // Necesidades real = aportaciones a casas + gastos fijos
+    var apNow = getAportaciones(CY,CM);
+    var rN_juls = (+(apNow.jm||0))+(+(apNow.ja||0))+totalFijos('juls');
+    var rN_kev  = (+(apNow.km||0))+(+(apNow.ka||0))+totalFijos('kev');
+    var rN = isDash ? (rN_juls+rN_kev) : (tab==='juls' ? rN_juls : rN_kev);
     var rD = isDash ? sumArr(gastosC(g,'juls'))+sumArr(gastosC(g,'kev')) : sumArr(gastosC(g,tab));
     var rA=sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===CM&&(x.categoria==='Ahorro'||x.categoria==='Inversiones');}));
     function rc(cls,lbl,pct,obj,real,isAho) {
