@@ -861,6 +861,59 @@ function seedDataIfEmpty(){
     {cuenta:'kev',categoria:'Gasolina Personal',importe:80.4,fecha:'2026-02-01',descripcion:'Tiguan'}
   ];
   kg.forEach(g=>ST.gastos.push({...g,id:uid()}));
+  // Casa real gastos Jan-May 2026
+  const casaGastos=[
+    {cuenta:'madrid',categoria:'Suministros Agua',importe:0.47,fecha:'2026-01-05',descripcion:'Agua'},
+    {cuenta:'madrid',categoria:'Suministros Luz y Gas',importe:22.0,fecha:'2026-01-10',descripcion:'Luz & gas'},
+    {cuenta:'madrid',categoria:'Seguro Hogar',importe:0.5,fecha:'2026-01-05',descripcion:'Seguro hogar'},
+    {cuenta:'madrid',categoria:'Cuotas y Suscripciones',importe:1.0,fecha:'2026-01-05',descripcion:'Suscripciones'},
+    {cuenta:'madrid',categoria:'Alarma',importe:0.69,fecha:'2026-01-05',descripcion:'Alarma'},
+    {cuenta:'madrid',categoria:'Suministros Luz y Gas',importe:24.79,fecha:'2026-02-10',descripcion:'Luz & gas'},
+    {cuenta:'madrid',categoria:'Seguro Hogar',importe:0.01,fecha:'2026-02-05',descripcion:'Seguro hogar'},
+    {cuenta:'madrid',categoria:'Cuotas y Suscripciones',importe:1.0,fecha:'2026-02-05',descripcion:'Suscripciones'},
+    {cuenta:'madrid',categoria:'Alarma',importe:0.69,fecha:'2026-02-05',descripcion:'Alarma'},
+    {cuenta:'madrid',categoria:'Servicio Limpieza',importe:0.18,fecha:'2026-02-20',descripcion:'Limpieza'},
+    {cuenta:'madrid',categoria:'Suministros Agua',importe:4.94,fecha:'2026-03-05',descripcion:'Agua'},
+    {cuenta:'madrid',categoria:'Suministros Luz y Gas',importe:2.78,fecha:'2026-03-10',descripcion:'Luz & gas'},
+    {cuenta:'madrid',categoria:'Seguro Hogar',importe:0.01,fecha:'2026-03-05',descripcion:'Seguro hogar'},
+    {cuenta:'madrid',categoria:'Cuotas y Suscripciones',importe:17.99,fecha:'2026-03-05',descripcion:'Suscripciones'},
+    {cuenta:'madrid',categoria:'Alarma',importe:0.69,fecha:'2026-03-05',descripcion:'Alarma'},
+    {cuenta:'madrid',categoria:'Servicio Limpieza',importe:80.18,fecha:'2026-03-20',descripcion:'Limpieza'},
+    {cuenta:'madrid',categoria:'Alquiler/Hipoteca',importe:1453.0,fecha:'2026-04-01',descripcion:'Alquiler'},
+    {cuenta:'madrid',categoria:'Suministros Luz y Gas',importe:55.0,fecha:'2026-04-10',descripcion:'Luz & gas'},
+    {cuenta:'madrid',categoria:'Telefonía e Internet',importe:48.0,fecha:'2026-04-10',descripcion:'Telefonía'},
+    {cuenta:'madrid',categoria:'Alarma',importe:0.55,fecha:'2026-04-05',descripcion:'Alarma'},
+    {cuenta:'madrid',categoria:'Servicio Limpieza',importe:258.96,fecha:'2026-04-20',descripcion:'Limpieza'},
+    {cuenta:'madrid',categoria:'Alimentación',importe:74.27,fecha:'2026-04-15',descripcion:'Alimentación'},
+    {cuenta:'madrid',categoria:'Gastos Varios',importe:116.0,fecha:'2026-04-25',descripcion:'Gastos varios'},
+    {cuenta:'madrid',categoria:'Suministros Agua',importe:30.0,fecha:'2026-05-05',descripcion:'Agua'},
+    {cuenta:'madrid',categoria:'Suministros Luz y Gas',importe:55.0,fecha:'2026-05-10',descripcion:'Luz & gas'},
+    {cuenta:'madrid',categoria:'Seguro Vehículo',importe:217.98,fecha:'2026-05-05',descripcion:'Seguro vehículo'},
+    {cuenta:'madrid',categoria:'Cuotas y Suscripciones',importe:1.0,fecha:'2026-05-05',descripcion:'Suscripciones'},
+    {cuenta:'madrid',categoria:'Mantenimiento Coche',importe:28.96,fecha:'2026-05-05',descripcion:'Mantenimiento coche'},
+    {cuenta:'madrid',categoria:'Alarma',importe:0.55,fecha:'2026-05-05',descripcion:'Alarma'},
+    {cuenta:'madrid',categoria:'Servicio Limpieza',importe:258.96,fecha:'2026-05-20',descripcion:'Limpieza'},
+    {cuenta:'madrid',categoria:'Transporte/Gasolina',importe:1.18,fecha:'2026-05-15',descripcion:'Transporte'},
+    {cuenta:'madrid',categoria:'Gastos Varios',importe:15.64,fecha:'2026-05-25',descripcion:'Gastos varios'},
+    {cuenta:'asturias',categoria:'Suministros Luz y Gas',importe:2.06,fecha:'2026-01-10',descripcion:'Luz'},
+    {cuenta:'asturias',categoria:'Telefonía e Internet',importe:5.98,fecha:'2026-01-10',descripcion:'Telefonía'},
+    {cuenta:'asturias',categoria:'Gastos Hogar',importe:50.0,fecha:'2026-01-20',descripcion:'Gastos hogar'},
+    {cuenta:'asturias',categoria:'Suministros Luz y Gas',importe:1.08,fecha:'2026-02-10',descripcion:'Luz'},
+    {cuenta:'asturias',categoria:'Suministros Gas',importe:20.0,fecha:'2026-02-10',descripcion:'Gas'},
+    {cuenta:'asturias',categoria:'Telefonía e Internet',importe:3.98,fecha:'2026-02-10',descripcion:'Telefonía'},
+    {cuenta:'asturias',categoria:'Gastos Hogar',importe:23.5,fecha:'2026-02-20',descripcion:'Gastos hogar'},
+    {cuenta:'asturias',categoria:'Telefonía e Internet',importe:5.89,fecha:'2026-03-10',descripcion:'Telefonía'},
+    {cuenta:'asturias',categoria:'Seguro de Vida',importe:0.69,fecha:'2026-03-05',descripcion:'Seguro vida'},
+    {cuenta:'asturias',categoria:'Gastos Hogar',importe:50.0,fecha:'2026-03-20',descripcion:'Gastos hogar'},
+    {cuenta:'asturias',categoria:'Suministros Luz y Gas',importe:5.51,fecha:'2026-04-10',descripcion:'Luz'},
+    {cuenta:'asturias',categoria:'Suministros Gas',importe:20.0,fecha:'2026-04-10',descripcion:'Gas'},
+    {cuenta:'asturias',categoria:'Telefonía e Internet',importe:7.0,fecha:'2026-04-10',descripcion:'Telefonía'},
+    {cuenta:'asturias',categoria:'Gastos Hogar',importe:5.62,fecha:'2026-04-20',descripcion:'Gastos hogar'},
+    {cuenta:'asturias',categoria:'Suministros Luz y Gas',importe:5.38,fecha:'2026-05-10',descripcion:'Luz'},
+    {cuenta:'asturias',categoria:'Telefonía e Internet',importe:7.0,fecha:'2026-05-10',descripcion:'Telefonía'},
+    {cuenta:'asturias',categoria:'Alarma',importe:52.2,fecha:'2026-05-05',descripcion:'Alarma'}
+  ];
+  casaGastos.forEach(g=>ST.gastos.push({...g,id:uid()}));
   syncAll();
 }
 
@@ -1006,7 +1059,7 @@ async function guardarRegla(){
 // ═══════════════════════════════════════
 // CASAS
 // ═══════════════════════════════════════
-function setCasM(m){CM=m;renderCasaPanel();}
+function setCasM(m){CM=m;mbar('cas-mbar',CM,'setCasM');renderCasaPanel();}
 function renderCasas(){mbar('cas-mbar',CM,'setCasM');renderCasaPanel();}
 function switchCasa(c){aCasa=c;document.getElementById('pmad').className='pill'+(c==='madrid'?' am':'');document.getElementById('past').className='pill'+(c==='asturias'?' aa':'');renderCasaPanel();}
 function renderCasaPanel(){
@@ -1034,7 +1087,7 @@ function renderCasaPanel(){
 // ═══════════════════════════════════════
 // PERSONAL
 // ═══════════════════════════════════════
-function setPerM(m){CM=m;renderPersPanel();}
+function setPerM(m){CM=m;mbar('per-mbar',CM,'setPerM');renderPersPanel();}
 function renderPersonal(){mbar('per-mbar',CM,'setPerM');renderPersPanel();}
 function switchPers(p){aPers=p;document.getElementById('pjuls').className='pill'+(p==='juls'?' aj':'');document.getElementById('pkev').className='pill'+(p==='kev'?' ak':'');renderPersPanel();}
 function renderPersPanel(){
