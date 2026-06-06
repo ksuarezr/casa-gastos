@@ -233,6 +233,16 @@ tbody td{padding:8px 11px;font-size:.8rem;}
           <tbody id="inc-body"></tbody>
         </table>
       </div>
+      <div id="bonus-split-section" style="display:none">
+        <div class="stitle">Split de Bonus este mes</div>
+        <div class="panel" style="padding:15px 17px">
+          <p style="font-size:.78rem;color:#8a8578;margin-bottom:12px">Distribucion automatica del bonus segun la regla configurada. Puedes ajustar los importes.</p>
+          <table class="inctable" id="bonus-split-table">
+            <thead><tr><th>Concepto</th><th>Juls</th><th>Kev</th><th>Total</th></tr></thead>
+            <tbody id="bonus-split-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="stitle">Regla de distribucion por persona</div>
       <div class="panel" style="padding:15px 17px">
         <div class="ptabs" style="margin-bottom:12px">
@@ -352,9 +362,21 @@ tbody td{padding:8px 11px;font-size:.8rem;}
           </div>
           <button class="btn" id="btnReglaAport">Guardar reglas</button>
         </div>
-        <div style="font-size:.78rem;color:#8a8578;line-height:1.8">
+        <div style="font-size:.78rem;color:#8a8578;line-height:1.8;margin-bottom:14px">
           <div>&#128104; <strong>Kev:</strong> Aportacion total = X% salario - gastos fijos. Asturias = budget completo. Madrid = resto.</div>
           <div>&#128105; <strong>Juls:</strong> Aportacion = X% salario. Cubre Madrid restante + gastos fijos. Si no alcanza, se resta del ahorro.</div>
+        </div>
+        <p style="font-size:.78rem;font-weight:700;color:var(--ink);margin-bottom:8px">Split de Bonus/Extra</p>
+        <p style="font-size:.78rem;color:#8a8578;margin-bottom:10px">Cuando hay bonus, se reparte automaticamente entre personal y ahorro.</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap">
+          <div class="field">
+            <label>% Bonus a Personal</label>
+            <input type="number" id="ra_bper" min="0" max="100" step="1" style="width:80px">
+          </div>
+          <div class="field">
+            <label>% Bonus a Ahorro</label>
+            <input type="number" id="ra_baho" min="0" max="100" step="1" style="width:80px">
+          </div>
         </div>
       </div>
       <div class="ss dz"><h3>Zona peligrosa</h3>
@@ -387,7 +409,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     budgetPersonal: {},
     aportaciones: {},
     gastosFijos: {juls:[], kev:[]},
-    reglaAport: {kev_pct:70, juls_pct:65},
+    reglaAport: {kev_pct:70, juls_pct:65, bonus_personal:40, bonus_ahorro:60},
     gastos: []
   };
 
@@ -1115,6 +1137,36 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var js=g('i_js'),jb=g('i_jb'),jo=g('i_jo'),ks=g('i_ks'),kb=g('i_kb'),ko=g('i_ko');
     function s(id,v){var e=document.getElementById(id);if(e)e.textContent=fmt(v);}
     s('ts_s',js+ks);s('ts_b',jb+kb);s('ts_o',jo+ko);s('ts_j',js+jb+jo);s('ts_k',ks+kb+ko);s('ts_t',js+jb+jo+ks+kb+ko);
+    var bonusSec=document.getElementById('bonus-split-section');
+    if(bonusSec){if(jb>0||kb>0){bonusSec.style.display='block';renderBonusSplit(jb,kb);}else{bonusSec.style.display='none';}}
+  }
+  function renderBonusSplit(jb,kb){
+    var ra=ST.reglaAport||{bonus_personal:40,bonus_ahorro:60};
+    var bper=ra.bonus_personal||40,baho=ra.bonus_ahorro||60;
+    var jPer=Math.round(jb*(bper/100)*100)/100,jAho=Math.round(jb*(baho/100)*100)/100;
+    var kPer=Math.round(kb*(bper/100)*100)/100,kAho=Math.round(kb*(baho/100)*100)/100;
+    var el=document.getElementById('bonus-split-body');if(!el)return;
+    el.innerHTML=
+      '<tr style="background:rgba(123,111,160,.05)"><td>Personal ('+bper+'%)</td>'+
+      '<td><input class="inctable" type="number" id="bs_jper" value="'+jPer+'" step="0.01" inputmode="decimal"></td>'+
+      '<td><input class="inctable" type="number" id="bs_kper" value="'+kPer+'" step="0.01" inputmode="decimal"></td>'+
+      '<td id="bs_per_t" style="font-weight:600">'+fmt(jPer+kPer)+'</td></tr>'+
+      '<tr style="background:rgba(39,169,108,.05)"><td>Ahorro ('+baho+'%)</td>'+
+      '<td><input class="inctable" type="number" id="bs_jaho" value="'+jAho+'" step="0.01" inputmode="decimal"></td>'+
+      '<td><input class="inctable" type="number" id="bs_kaho" value="'+kAho+'" step="0.01" inputmode="decimal"></td>'+
+      '<td id="bs_aho_t" style="font-weight:600">'+fmt(jAho+kAho)+'</td></tr>'+
+      '<tr style="font-weight:700;background:var(--cream)"><td>TOTAL BONUS</td>'+
+      '<td style="font-weight:600">'+fmt(jb)+'</td><td style="font-weight:600">'+fmt(kb)+'</td>'+
+      '<td style="font-weight:600">'+fmt(jb+kb)+'</td></tr>';
+    ['bs_jper','bs_kper','bs_jaho','bs_kaho'].forEach(function(id){
+      var e=document.getElementById(id);
+      if(e)e.addEventListener('input',function(){
+        function g(i){var el=document.getElementById(i);return el?+(el.value||0):0;}
+        var pt=document.getElementById('bs_per_t'),at=document.getElementById('bs_aho_t');
+        if(pt)pt.textContent=fmt(g('bs_jper')+g('bs_kper'));
+        if(at)at.textContent=fmt(g('bs_jaho')+g('bs_kaho'));
+      });
+    });
   }
 
   function switchFijosTab(p) {
@@ -1280,9 +1332,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('sJuls').value=ST.nombres.juls;
     document.getElementById('sKev').value=ST.nombres.kev;
     document.getElementById('delY').textContent=CY;
-    var ra = ST.reglaAport || {kev_pct:70, juls_pct:65};
+    var ra = ST.reglaAport || {kev_pct:70, juls_pct:65, bonus_personal:40, bonus_ahorro:60};
     document.getElementById('ra_kev').value = ra.kev_pct;
     document.getElementById('ra_juls').value = ra.juls_pct;
+    document.getElementById('ra_bper').value = ra.bonus_personal||40;
+    document.getElementById('ra_baho').value = ra.bonus_ahorro||60;
     renderCatList();mbar('bs-mbar',aBSM,'setBSM');renderBSInputs();
   }
 
@@ -1408,6 +1462,23 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       });
     });
     document.getElementById('btnGuardarAhorro').addEventListener('click', function(){
+      // If bonus split is visible, use those values instead of the ahorro section
+      var bonusVisible = document.getElementById('bonus-split-section');
+      if (bonusVisible && bonusVisible.style.display !== 'none') {
+        function gb(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+        var jPer=gb('bs_jper'),kPer=gb('bs_kper'),jAho=gb('bs_jaho'),kAho=gb('bs_kaho');
+        var today=new Date().toISOString().slice(0,10);
+        var nuevos=[];
+        if(jPer>0) nuevos.push({id:uid(),cuenta:'juls',categoria:'Otros Personales',importe:jPer,fecha:today,descripcion:'Bonus personal '+MESES[CM]});
+        if(kPer>0) nuevos.push({id:uid(),cuenta:'kev',categoria:'Otros Personales',importe:kPer,fecha:today,descripcion:'Bonus personal '+MESES[CM]});
+        if(jAho>0) nuevos.push({id:uid(),cuenta:'juls',categoria:'Ahorro',importe:jAho,fecha:today,descripcion:'Bonus ahorro '+MESES[CM]});
+        if(kAho>0) nuevos.push({id:uid(),cuenta:'kev',categoria:'Ahorro',importe:kAho,fecha:today,descripcion:'Bonus ahorro '+MESES[CM]});
+        if(nuevos.length){
+          nuevos.forEach(function(g){ST.gastos.push(g);save();fastSaveGasto(g);});
+          alert('Split de bonus registrado.');
+          return;
+        }
+      }
       function g(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
       var aj=g('aho_j'),ak=g('aho_k'),ij=g('inv_j'),ik=g('inv_k');
       var today=new Date().toISOString().slice(0,10);
@@ -1431,7 +1502,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('btnReglaAport').addEventListener('click', function(){
       ST.reglaAport = {
         kev_pct: +(document.getElementById('ra_kev').value)||70,
-        juls_pct: +(document.getElementById('ra_juls').value)||65
+        juls_pct: +(document.getElementById('ra_juls').value)||65,
+        bonus_personal: +(document.getElementById('ra_bper').value)||40,
+        bonus_ahorro: +(document.getElementById('ra_baho').value)||60
       };
       syncAll(true).then(function(){alert('Reglas de aportacion guardadas.');});
     });
