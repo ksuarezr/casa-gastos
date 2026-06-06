@@ -1173,15 +1173,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       jm: ap.jm > 0 ? ap.jm : calc.jm,
       ja: ap.ja > 0 ? ap.ja : calc.ja
     };
-    // Warning uses same base as necesidades "excedido" in regla distribucion
-    var ra2 = ST.reglaAport || {juls_pct:65};
-    var rawInc2 = getInc(CY,CM);
-    var jSal2 = (+rawInc2.js||0)+(+rawInc2.jb||0);
-    var jObjetivoNec = jSal2 * (ra2.juls_pct/100);
-    var jRealNec2 = apVals.jm + apVals.ja + totalFijos('juls');
-    var jExcesoFinal = Math.max(0, jRealNec2 - jObjetivoNec);
-    var jExcesoHtml = jExcesoFinal > 0 ?
-      '<tr><td colspan="3" style="font-size:.75rem;color:var(--amber);padding:6px 12px">&#9888;&#65039; '+ST.nombres.juls+': necesidades superan el '+ra2.juls_pct+'% del salario. Excedido '+fmt(jExcesoFinal)+' - se resta del ahorro.</td></tr>' : '';
+
     el.innerHTML = rows.map(function(r) {
       var autoVal = calc[r.key] || 0;
       var curVal = vals[r.key] || '';
@@ -1197,6 +1189,15 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     };
     var kAport = apVals.km + apVals.ka, jAport = apVals.jm + apVals.ja;
     var kFijos = totalFijos('kev'), jFijos = totalFijos('juls');
+    // Warning - same calc as necesidades excedido in regla
+    var ra2 = ST.reglaAport || {juls_pct:65};
+    var rawInc2 = getInc(CY,CM);
+    var jSal2 = (+rawInc2.js||0)+(+rawInc2.jb||0);
+    var jObjetivoNec = jSal2 * (ra2.juls_pct/100);
+    var jRealNec2 = apVals.jm + apVals.ja + totalFijos('juls');
+    var jExcesoFinal = Math.max(0, jRealNec2 - jObjetivoNec);
+    var jExcesoHtml = jExcesoFinal > 0 ?
+      '<tr><td colspan="3" style="font-size:.75rem;color:var(--amber);padding:6px 12px">&#9888; '+ST.nombres.juls+': necesidades superan el '+ra2.juls_pct+'% salario. Excedido '+fmt(jExcesoFinal)+' se resta del ahorro.</td></tr>' : '';
     var rKd = ST.regla.kev||{des:30,aho:20}, rJd = ST.regla.juls||{des:30,aho:20};
     var kLiq = kLiqBase - kAport - kFijos, jLiq = jLiqBase - jAport - jFijos;
     var liqEl = document.getElementById('liquido-summary');
