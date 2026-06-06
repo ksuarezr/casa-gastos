@@ -964,10 +964,10 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var pN = isDash ? rDef.nec : (+(pNel?pNel.value:rDef.nec)||rDef.nec);
     var pD = isDash ? rDef.des : (+(pDel?pDel.value:rDef.des)||rDef.des);
     var pA = isDash ? rDef.aho : (+(pAel?pAel.value:rDef.aho)||rDef.aho);
-    // Base for % rule = salary + bonus only (no ticket/otros)
+    // Base for % rule = SALARY ONLY (no bonus, no ticket/otros)
     var incRaw2 = getInc(CY,CM);
-    var ingJuls = (+incRaw2.js||0) + (+incRaw2.jb||0);
-    var ingKev  = (+incRaw2.ks||0) + (+incRaw2.kb||0);
+    var ingJuls = (+incRaw2.js||0);
+    var ingKev  = (+incRaw2.ks||0);
     var ing = isDash ? (ingJuls + ingKev) : (tab==='juls' ? ingJuls : ingKev);
     var g=gastosMes(CY,CM);
     // Necesidades real = aportaciones a casas + gastos fijos
