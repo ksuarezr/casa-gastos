@@ -430,8 +430,12 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var jMad = Math.max(0, madBudget - madCubiertoKev);
     var jAst = 0; // Juls no aporta a Asturias
     // Check if juls aportacion > 65% (deduct from ahorro)
+    // jExceso: real necesidades (aportacion casas + fijos) minus 65% salario
     var jCasasFijos = jMad + jFijos;
     var jExceso = Math.max(0, jCasasFijos - jAportTotal);
+    // Also store rN_juls equivalent for display (same as renderRegla)
+    var apNowCalc = {jm: jMad, ja: jAst};
+    var jRealNec = jMad + jFijos;
     return {
       km: Math.round(kMad * 100) / 100,
       ka: Math.round(kAst * 100) / 100,
@@ -1169,8 +1173,15 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       jm: ap.jm > 0 ? ap.jm : calc.jm,
       ja: ap.ja > 0 ? ap.ja : calc.ja
     };
-    var jExcesoHtml = calc.jExceso > 0 ?
-      '<tr><td colspan="3" style="font-size:.75rem;color:var(--amber);padding:6px 12px">⚠️ '+ST.nombres.juls+': el 65% no cubre casas+fijos. Exceso '+fmt(calc.jExceso)+' se resta del ahorro.</td></tr>' : '';
+    // Warning uses same base as necesidades "excedido" in regla distribucion
+    var ra2 = ST.reglaAport || {juls_pct:65};
+    var rawInc2 = getInc(CY,CM);
+    var jSal2 = (+rawInc2.js||0)+(+rawInc2.jb||0);
+    var jObjetivoNec = jSal2 * (ra2.juls_pct/100);
+    var jRealNec2 = apVals.jm + apVals.ja + totalFijos('juls');
+    var jExcesoFinal = Math.max(0, jRealNec2 - jObjetivoNec);
+    var jExcesoHtml = jExcesoFinal > 0 ?
+      '<tr><td colspan="3" style="font-size:.75rem;color:var(--amber);padding:6px 12px">&#9888;&#65039; '+ST.nombres.juls+': necesidades superan el '+ra2.juls_pct+'% del salario. Excedido '+fmt(jExcesoFinal)+' - se resta del ahorro.</td></tr>' : '';
     el.innerHTML = rows.map(function(r) {
       var autoVal = calc[r.key] || 0;
       var curVal = vals[r.key] || '';
