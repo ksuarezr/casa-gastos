@@ -338,6 +338,25 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         <div class="cl" id="cat-list"></div>
         <div class="addrow"><input type="text" id="newCat" placeholder="Nueva categoria..."><button class="btn" id="btnAddCat">Anadir</button></div>
       </div>
+      <div class="ss">
+        <h3>&#128204; Reglas de aportacion</h3>
+        <p style="font-size:.78rem;color:#8a8578;margin-bottom:14px">Define el % del salario que destina cada uno a las casas. La app calcula automaticamente las aportaciones cada mes.</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+          <div class="field">
+            <label>% Kev (salario - gastos fijos)</label>
+            <input type="number" id="ra_kev" min="0" max="100" step="1" style="width:80px">
+          </div>
+          <div class="field">
+            <label>% Juls (de salario)</label>
+            <input type="number" id="ra_juls" min="0" max="100" step="1" style="width:80px">
+          </div>
+          <button class="btn" id="btnReglaAport">Guardar reglas</button>
+        </div>
+        <div style="font-size:.78rem;color:#8a8578;line-height:1.8">
+          <div>&#128104; <strong>Kev:</strong> Aportacion total = X% salario - gastos fijos. Asturias = budget completo. Madrid = resto.</div>
+          <div>&#128105; <strong>Juls:</strong> Aportacion = X% salario. Cubre Madrid restante + gastos fijos. Si no alcanza, se resta del ahorro.</div>
+        </div>
+      </div>
       <div class="ss dz"><h3>Zona peligrosa</h3>
         <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
           <button class="btn danger" id="btnBorrarAnyo">Borrar <span id="delY"></span></button>
@@ -368,6 +387,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     budgetPersonal: {},
     aportaciones: {},
     gastosFijos: {juls:[], kev:[]},
+    reglaAport: {kev_pct:70, juls_pct:65},
     gastos: []
   };
 
@@ -391,6 +411,35 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   };
   function normCat(cat) { return CAT_NORM[cat] || cat; }
   var activeReglaTab = 'juls';
+
+  function calcAportaciones(y, m) {
+    var ra = ST.reglaAport || {kev_pct:70, juls_pct:65};
+    var rawInc = getInc(y, m);
+    var kSal = (+rawInc.ks||0) + (+rawInc.kb||0);
+    var jSal = (+rawInc.js||0) + (+rawInc.jb||0);
+    var kFijos = totalFijos('kev');
+    var jFijos = totalFijos('juls');
+    // Kev: 70% salario - gastos fijos
+    var kAportTotal = kSal * (ra.kev_pct/100) - kFijos;
+    var kAst = getBMT('asturias', y, m); // budget completo asturias
+    var kMad = Math.max(0, kAportTotal - kAst);
+    // Juls: 65% salario
+    var jAportTotal = jSal * (ra.juls_pct/100);
+    var madBudget = getBMT('madrid', y, m);
+    var madCubiertoKev = kMad;
+    var jMad = Math.max(0, madBudget - madCubiertoKev);
+    var jAst = 0; // Juls no aporta a Asturias
+    // Check if juls aportacion > 65% (deduct from ahorro)
+    var jCasasFijos = jMad + jFijos;
+    var jExceso = Math.max(0, jCasasFijos - jAportTotal);
+    return {
+      km: Math.round(kMad * 100) / 100,
+      ka: Math.round(kAst * 100) / 100,
+      jm: Math.round(jMad * 100) / 100,
+      ja: jAst,
+      jExceso: Math.round(jExceso * 100) / 100
+    };
+  }
   var activeFijosTab = 'juls';
   function totalFijos(p) { return ((ST.gastosFijos||{})[p]||[]).reduce(function(s,g){return s+(+g.importe||0);},0); }
   function getAportaciones(y,m) { return ((ST.aportaciones||{})[y]||{})[m]||{km:0,ka:0,jm:0,ja:0}; }
@@ -423,6 +472,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         if (!ST.cats) ST.cats = {casa: CATS_CASA.slice(), personal: CATS_PERS.slice()};
         if (!ST.budgetPersonal) ST.budgetPersonal = {};
         if (!ST.gastosFijos) ST.gastosFijos = {juls:[], kev:[]};
+        if (!ST.reglaAport) ST.reglaAport = {kev_pct:70, juls_pct:65};
         if (!ST.regla) ST.regla = {juls:{nec:50,des:30,aho:20},kev:{nec:50,des:30,aho:20}};
         if (ST.regla.nec !== undefined) ST.regla = {juls:{nec:ST.regla.nec,des:ST.regla.des,aho:ST.regla.aho},kev:{nec:ST.regla.nec,des:ST.regla.des,aho:ST.regla.aho}};
         if (!ST.gastos) ST.gastos = [];
@@ -648,6 +698,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(cfg.budget_personal) try{ST.budgetPersonal=JSON.parse(cfg.budget_personal);}catch(e){}
       if(cfg.regla_juls) try{ST.regla.juls=JSON.parse(cfg.regla_juls);}catch(e){}
       if(cfg.regla_kev) try{ST.regla.kev=JSON.parse(cfg.regla_kev);}catch(e){}
+      if(cfg.regla_aport) try{ST.reglaAport=JSON.parse(cfg.regla_aport);}catch(e){}
       if(cfg.aportaciones) try{ST.aportaciones=JSON.parse(cfg.aportaciones);}catch(e){}
       if(cfg.gastos_fijos) try{ST.gastosFijos=JSON.parse(cfg.gastos_fijos);}catch(e){}
     }).catch(function(e) {
@@ -694,6 +745,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)],
         ['budget_personal',JSON.stringify(ST.budgetPersonal||{})],
         ['regla_juls',JSON.stringify(ST.regla.juls||{nec:50,des:30,aho:20})],
+        ['regla_aport',JSON.stringify(ST.reglaAport||{kev_pct:70,juls_pct:65})],
         ['regla_kev',JSON.stringify(ST.regla.kev||{nec:50,des:30,aho:20})],
         ['aportaciones',JSON.stringify(ST.aportaciones||{})],
         ['gastos_fijos',JSON.stringify(ST.gastosFijos||{})]
@@ -1103,14 +1155,29 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     ];
     var el = document.getElementById('aport-body');
     if (!el) return;
+    // Auto-calculate using rules
+    var calc = calcAportaciones(CY, CM);
+    // Use saved manual override if exists, else use calc
+    var vals = {
+      km: ap.km > 0 ? ap.km : calc.km,
+      ka: ap.ka > 0 ? ap.ka : calc.ka,
+      jm: ap.jm > 0 ? ap.jm : calc.jm,
+      ja: ap.ja > 0 ? ap.ja : calc.ja
+    };
+    var jExcesoHtml = calc.jExceso > 0 ?
+      '<tr><td colspan="3" style="font-size:.75rem;color:var(--amber);padding:6px 12px">⚠️ '+ST.nombres.juls+': el 65% no cubre casas+fijos. Exceso '+fmt(calc.jExceso)+' se resta del ahorro.</td></tr>' : '';
     el.innerHTML = rows.map(function(r) {
+      var autoVal = calc[r.key] || 0;
+      var curVal = vals[r.key] || '';
+      var isAuto = !ap[r.key] || ap[r.key] === 0;
       return '<tr><td>'+r.label+'</td>'+
-        '<td style="color:#8a8578;font-size:.82rem">'+fmt(r.teorico)+'</td>'+
-        '<td><input type="number" id="ap_'+r.key+'" value="'+(ap[r.key]||'')+'" placeholder="'+r.teorico+'" min="0" step="10" inputmode="decimal" style="border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:5px 8px;font-family:DM Sans,sans-serif;font-size:.82rem;background:var(--paper);outline:none;width:110px"></td></tr>';
-    }).join('');
+        '<td style="color:#8a8578;font-size:.82rem">'+fmt(autoVal)+'<br><span style="font-size:.68rem;color:#bbb">'+(isAuto?'auto':'manual')+'</span></td>'+
+        '<td><input type="number" id="ap_'+r.key+'" value="'+curVal+'" placeholder="'+Math.round(autoVal)+'" min="0" step="10" inputmode="decimal" style="border:1.5px solid rgba(26,26,46,.12);border-radius:6px;padding:5px 8px;font-family:DM Sans,sans-serif;font-size:.82rem;background:var(--paper);outline:none;width:110px"></td></tr>';
+    }).join('') + jExcesoHtml;
+    var calcNow = calcAportaciones(CY, CM);
     var apVals = {
-      km: +(ap.km||rows[0].teorico), ka: +(ap.ka||rows[1].teorico),
-      jm: +(ap.jm||rows[2].teorico), ja: +(ap.ja||rows[3].teorico)
+      km: +(ap.km||calcNow.km), ka: +(ap.ka||calcNow.ka),
+      jm: +(ap.jm||calcNow.jm), ja: +(ap.ja||calcNow.ja)
     };
     var kAport = apVals.km + apVals.ka, jAport = apVals.jm + apVals.ja;
     var kFijos = totalFijos('kev'), jFijos = totalFijos('juls');
@@ -1119,8 +1186,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var liqEl = document.getElementById('liquido-summary');
     if (liqEl) {
       liqEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">' +
-        liqCard(ST.nombres.kev,'kev',kLiqBase,kAport,kFijos,kLiq,kInc*(rKd.des/100),kInc*(rKd.aho/100)) +
-        liqCard(ST.nombres.juls,'juls',jLiqBase,jAport,jFijos,jLiq,jInc*(rJd.des/100),jInc*(rJd.aho/100)) +
+        liqCard(ST.nombres.kev,'kev',kLiqBase,kAport,kFijos,kLiq,kLiqBase*(rKd.des/100),kLiqBase*(rKd.aho/100)) +
+        liqCard(ST.nombres.juls,'juls',jLiqBase,jAport,jFijos,jLiq,jLiqBase*(rJd.des/100),jLiqBase*(rJd.aho/100)) +
         '</div>';
     }
   }
@@ -1196,6 +1263,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('sJuls').value=ST.nombres.juls;
     document.getElementById('sKev').value=ST.nombres.kev;
     document.getElementById('delY').textContent=CY;
+    var ra = ST.reglaAport || {kev_pct:70, juls_pct:65};
+    document.getElementById('ra_kev').value = ra.kev_pct;
+    document.getElementById('ra_juls').value = ra.juls_pct;
     renderCatList();mbar('bs-mbar',aBSM,'setBSM');renderBSInputs();
   }
 
@@ -1340,6 +1410,13 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       if(!ST.ingresos[CY])ST.ingresos[CY]={};
       ST.ingresos[CY][CM]={js:g('i_js'),jb:g('i_jb'),jo:g('i_jo'),ks:g('i_ks'),kb:g('i_kb'),ko:g('i_ko')};
       syncAll().then(function(){alert('Ingresos guardados.');});
+    });
+    document.getElementById('btnReglaAport').addEventListener('click', function(){
+      ST.reglaAport = {
+        kev_pct: +(document.getElementById('ra_kev').value)||70,
+        juls_pct: +(document.getElementById('ra_juls').value)||65
+      };
+      syncAll(true).then(function(){alert('Reglas de aportacion guardadas.');});
     });
     document.getElementById('btnNombres').addEventListener('click', function(){
       ST.nombres.juls=document.getElementById('sJuls').value||'Juls';
