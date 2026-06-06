@@ -437,8 +437,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function calcAportaciones(y, m) {
     var ra = ST.reglaAport || {kev_pct:70, juls_pct:65};
     var rawInc = getInc(y, m);
-    var kSal = (+rawInc.ks||0) + (+rawInc.kb||0);
-    var jSal = (+rawInc.js||0) + (+rawInc.jb||0);
+    var kSal = (+rawInc.ks||0); // solo salario, no bonus
+    var jSal = (+rawInc.js||0); // solo salario, no bonus
     var kFijos = totalFijos('kev');
     var jFijos = totalFijos('juls');
     // Kev: 70% salario - gastos fijos
@@ -991,8 +991,17 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       var dt=isAho?(real>=obj?'Ahorrado '+fmt(real):'Pendiente '+fmt(dev)):(dev>=0?'Margen '+fmt(dev):'Excedido '+fmt(-dev));
       return '<div class="rcard '+cls+'"><div class="rlabel">'+lbl+'</div><div class="rpct">'+pct+'%</div><div class="ramt">Objetivo '+fmt(obj)+'</div><div class="rreal">Real: '+fmt(real)+'</div><div class="rdev" style="color:var(--'+col+')">'+dt+'</div></div>';
     }
+    // Add bonus split to personal and ahorro objectives
+    var rawB = isDash ? getInc(CY,CM) : getInc(CY,CM);
+    var jBonus = (+rawB.jb||0), kBonus = (+rawB.kb||0);
+    var bonusTotal = isDash ? (jBonus+kBonus) : (tab==='juls' ? jBonus : kBonus);
+    var ra3 = ST.reglaAport||{bonus_personal:40,bonus_ahorro:60};
+    var bonusPer = bonusTotal*(ra3.bonus_personal||40)/100;
+    var bonusAho = bonusTotal*(ra3.bonus_ahorro||60)/100;
+    var objPer = ing*(pD/100) + bonusPer;
+    var objAho = ing*(pA/100) + bonusAho;
     var el=document.getElementById(cid);
-    if(el)el.innerHTML=rc('','Necesidades',pN,ing*(pN/100),rN,false)+rc('des','Personal',pD,ing*(pD/100),rD,false)+rc('aho','Ahorro',pA,ing*(pA/100),rA,true);
+    if(el)el.innerHTML=rc('','Necesidades',pN,ing*(pN/100),rN,false)+rc('des','Personal',pD,objPer,rD,false)+rc('aho','Ahorro',pA,objAho,rA,true);
   }
 
   function setCasM(m){CM=m;mbar('cas-mbar',CM,'setCasM');renderCasaPanel();}
