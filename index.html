@@ -1060,7 +1060,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var adicionalPer=aPers==='juls'?(+incRaw.ja_per||0):(+incRaw.ka_per||0);
     var adicionalAho=aPers==='juls'?(+incRaw.ja_aho||0):(+incRaw.ka_aho||0);
     var adicional=adicionalPer+adicionalAho;
-    var ing=incBase+adicional; // total for display
+    var ing=ingBase+adicional; // total for display
     var ap=getAportaciones(CY,CM);
     var aportTotal=aPers==='juls'?(+(ap.jm||0))+(+(ap.ja||0)):(+(ap.km||0))+(+(ap.ka||0));
     var fijosTotal=totalFijos(aPers);
