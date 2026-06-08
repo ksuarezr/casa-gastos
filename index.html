@@ -531,11 +531,12 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function getPersonalBudget(p,y,m) {
     var manual = ((ST.budgetPersonal[y]||{})[m]||{})[p];
     if (manual>0) return {amount:manual, isManual:true};
-    // Base = salary + bonus only, same as ingresos section
     var raw = getInc(y,m);
-    var base = p==='juls' ? ((+raw.js||0)+(+raw.jb||0)) : ((+raw.ks||0)+(+raw.kb||0));
+    var salBase = p==='juls' ? ((+raw.js||0)+(+raw.jb||0)) : ((+raw.ks||0)+(+raw.kb||0));
+    var adicPer = p==='juls' ? (+raw.ja_per||0) : (+raw.ka_per||0);
     var pct = (ST.regla[p]||{des:30}).des;
-    return {amount: base*(pct/100), isManual:false};
+    // Budget = % of salary + adicional personal (goes entirely to personal)
+    return {amount: salBase*(pct/100) + adicPer, isManual:false};
   }
 
   function showLoading(msg) { document.getElementById('loading').style.display='flex'; document.getElementById('loading-msg').textContent=msg||'Cargando...'; }
@@ -1053,14 +1054,18 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var gAhorro=g.filter(function(x){return AHORRO_CATS.indexOf(x.categoria)!==-1;});
     var tot=sumArr(gGastos);
     var totAhorro=sumArr(gAhorro);
-    var ing=aPers==='juls'?incJ(CY,CM):incK(CY,CM);
     var incRaw=getInc(CY,CM);
-    var tickets=aPers==='juls'?(+incRaw.jo||0):(+incRaw.ko||0);
-    var adicional=aPers==='juls'?((+incRaw.ja_per||0)+(+incRaw.ja_aho||0)):((+incRaw.ka_per||0)+(+incRaw.ka_aho||0));
+    // Base = salary + bonus only (no tickets, no adicional yet)
+    var ingBase=aPers==='juls'?((+incRaw.js||0)+(+incRaw.jb||0)):((+incRaw.ks||0)+(+incRaw.kb||0));
+    var adicionalPer=aPers==='juls'?(+incRaw.ja_per||0):(+incRaw.ka_per||0);
+    var adicionalAho=aPers==='juls'?(+incRaw.ja_aho||0):(+incRaw.ka_aho||0);
+    var adicional=adicionalPer+adicionalAho;
+    var ing=incBase+adicional; // total for display
     var ap=getAportaciones(CY,CM);
     var aportTotal=aPers==='juls'?(+(ap.jm||0))+(+(ap.ja||0)):(+(ap.km||0))+(+(ap.ka||0));
     var fijosTotal=totalFijos(aPers);
-    var liquido=ing-aportTotal-fijosTotal-tickets+adicional;
+    // Liquido = salary+bonus - aportaciones - fijos + adicional
+    var liquido=ingBase-aportTotal-fijosTotal+adicional;
     var pb=getPersonalBudget(aPers,CY,CM),budgetAmt=pb.amount,isManual=pb.isManual;
     var pct=budgetAmt?Math.min(110,tot/budgetAmt*100):0,cls=budgetAmt?devcls(tot,budgetAmt):'neu';
     var dev=budgetAmt-tot,devCol=cls==='ok'?'green':cls==='warn'?'amber':'red';
