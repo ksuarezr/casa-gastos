@@ -523,8 +523,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function getBM(casa,y,m) { return ((ST.budgets[casa][y]||{})[m]) || {}; }
   function getBMT(casa,y,m) { return Object.values(getBM(casa,y,m)).reduce(function(a,b) { return a+(+b||0); }, 0); }
   function getInc(y,m) { return ((ST.ingresos[y]||{})[m]) || {js:0,jb:0,jo:0,ks:0,kb:0,ko:0}; }
-  function incJ(y,m) { var i=getInc(y,m); return (+i.js||0)+(+i.jb||0)+(+i.jo||0); }
-  function incK(y,m) { var i=getInc(y,m); return (+i.ks||0)+(+i.kb||0)+(+i.ko||0); }
+  function incJ(y,m) { var i=getInc(y,m); return (+i.js||0)+(+i.jb||0)+(+i.jo||0)+(+i.ja_per||0)+(+i.ja_aho||0); }
+  function incK(y,m) { var i=getInc(y,m); return (+i.ks||0)+(+i.kb||0)+(+i.ko||0)+(+i.ka_per||0)+(+i.ka_aho||0); }
   function incT(y,m) { return incJ(y,m)+incK(y,m); }
   function devcls(r,b) { if(!b) return 'neu'; var p=r/b; return p<0.7?'ok':p<0.9?'warn':'over'; }
   function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
@@ -964,11 +964,18 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var pN = isDash ? rDef.nec : (+(pNel?pNel.value:rDef.nec)||rDef.nec);
     var pD = isDash ? rDef.des : (+(pDel?pDel.value:rDef.des)||rDef.des);
     var pA = isDash ? rDef.aho : (+(pAel?pAel.value:rDef.aho)||rDef.aho);
-    // Base for % rule = SALARY ONLY (no bonus, no ticket/otros)
+    // Base for % rule = SALARY ONLY (no bonus, no ticket/otros, no adicional)
     var incRaw2 = getInc(CY,CM);
     var ingJuls = (+incRaw2.js||0);
     var ingKev  = (+incRaw2.ks||0);
+
     var ing = isDash ? (ingJuls + ingKev) : (tab==='juls' ? ingJuls : ingKev);
+    var ingJulsAdicPer = (+incRaw2.ja_per||0);
+    var ingKevAdicPer  = (+incRaw2.ka_per||0);
+    var ingJulsAdicAho = (+incRaw2.ja_aho||0);
+    var ingKevAdicAho  = (+incRaw2.ka_aho||0);
+    var ingAdic = isDash ? (ingJulsAdicPer+ingKevAdicPer) : (tab==='juls' ? ingJulsAdicPer : ingKevAdicPer);
+    var ingAdicAho = isDash ? (ingJulsAdicAho+ingKevAdicAho) : (tab==='juls' ? ingJulsAdicAho : ingKevAdicAho);
     var g=gastosMes(CY,CM);
     // Necesidades real = aportaciones a casas + gastos fijos
     var apNow = getAportaciones(CY,CM);
@@ -998,8 +1005,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var ra3 = ST.reglaAport||{bonus_personal:40,bonus_ahorro:60};
     var bonusPer = bonusTotal*(ra3.bonus_personal||40)/100;
     var bonusAho = bonusTotal*(ra3.bonus_ahorro||60)/100;
-    var objPer = ing*(pD/100) + bonusPer;
-    var objAho = ing*(pA/100) + bonusAho;
+    var objPer = ing*(pD/100) + bonusPer + ingAdic;
+    var objAho = ing*(pA/100) + bonusAho + ingAdicAho;
     var el=document.getElementById(cid);
     if(el)el.innerHTML=rc('','Necesidades',pN,ing*(pN/100),rN,false)+rc('des','Personal',pD,objPer,rD,false)+rc('aho','Ahorro',pA,objAho,rA,true);
   }
@@ -1049,10 +1056,11 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var ing=aPers==='juls'?incJ(CY,CM):incK(CY,CM);
     var incRaw=getInc(CY,CM);
     var tickets=aPers==='juls'?(+incRaw.jo||0):(+incRaw.ko||0);
+    var adicional=aPers==='juls'?((+incRaw.ja_per||0)+(+incRaw.ja_aho||0)):((+incRaw.ka_per||0)+(+incRaw.ka_aho||0));
     var ap=getAportaciones(CY,CM);
     var aportTotal=aPers==='juls'?(+(ap.jm||0))+(+(ap.ja||0)):(+(ap.km||0))+(+(ap.ka||0));
     var fijosTotal=totalFijos(aPers);
-    var liquido=ing-aportTotal-fijosTotal-tickets;
+    var liquido=ing-aportTotal-fijosTotal-tickets+adicional;
     var pb=getPersonalBudget(aPers,CY,CM),budgetAmt=pb.amount,isManual=pb.isManual;
     var pct=budgetAmt?Math.min(110,tot/budgetAmt*100):0,cls=budgetAmt?devcls(tot,budgetAmt):'neu';
     var dev=budgetAmt-tot,devCol=cls==='ok'?'green':cls==='warn'?'amber':'red';
@@ -1133,6 +1141,15 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       '<td><input class="inctable" type="number" id="i_jo" value="'+(i.jo||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
       '<td><input class="inctable" type="number" id="i_ko" value="'+(i.ko||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
       '<td id="ts_o" style="font-weight:600"></td></tr>'+
+      '<tr style="background:rgba(39,169,108,.04)"><td colspan="4" style="font-size:.72rem;font-weight:700;color:var(--green);padding:6px 12px;letter-spacing:.05em;text-transform:uppercase">&#127381; Ingreso adicional</td></tr>'+
+      '<tr style="background:rgba(39,169,108,.04)"><td style="padding-left:20px">A Personal</td>'+
+      '<td><input class="inctable" type="number" id="i_ja_per" value="'+(i.ja_per||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
+      '<td><input class="inctable" type="number" id="i_ka_per" value="'+(i.ka_per||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
+      '<td id="ts_a_per" style="font-weight:600;color:var(--green)"></td></tr>'+
+      '<tr style="background:rgba(39,169,108,.04)"><td style="padding-left:20px">A Ahorro</td>'+
+      '<td><input class="inctable" type="number" id="i_ja_aho" value="'+(i.ja_aho||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
+      '<td><input class="inctable" type="number" id="i_ka_aho" value="'+(i.ka_aho||'')+'" placeholder="0" step="0.01" inputmode="decimal"></td>'+
+      '<td id="ts_a_aho" style="font-weight:600;color:var(--green)"></td></tr>'+
       '<tr style="font-weight:700;background:var(--cream)"><td>TOTAL</td><td id="ts_j"></td><td id="ts_k"></td><td id="ts_t"></td></tr>';
     ['i_js','i_jb','i_jo','i_ks','i_kb','i_ko'].forEach(function(id){
       var el=document.getElementById(id);
@@ -1213,8 +1230,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var incRaw = getInc(CY,CM);
     var jInc = incJ(CY,CM), kInc = incK(CY,CM);
     // Liquido base = salario + bonus only (exclude ticket/otros)
-    var jLiqBase = (+incRaw.js||0) + (+incRaw.jb||0);
-    var kLiqBase = (+incRaw.ks||0) + (+incRaw.kb||0);
+    var jLiqBase = (+incRaw.js||0) + (+incRaw.jb||0) + (+incRaw.ja_per||0) + (+incRaw.ja_aho||0);
+    var kLiqBase = (+incRaw.ks||0) + (+incRaw.kb||0) + (+incRaw.ka_per||0) + (+incRaw.ka_aho||0);
     var rJ = ST.regla.juls||{nec:50}, rK = ST.regla.kev||{nec:50};
     var jNec = jInc*(rJ.nec/100), kNec = kInc*(rK.nec/100);
     var rows = [
@@ -1505,7 +1522,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('btnIngresos').addEventListener('click', function(){
       function g(id){var e=document.getElementById(id);return e?+(e.value||0):0;}
       if(!ST.ingresos[CY])ST.ingresos[CY]={};
-      ST.ingresos[CY][CM]={js:g('i_js'),jb:g('i_jb'),jo:g('i_jo'),ks:g('i_ks'),kb:g('i_kb'),ko:g('i_ko')};
+      ST.ingresos[CY][CM]={js:g('i_js'),jb:g('i_jb'),jo:g('i_jo'),ja_per:g('i_ja_per'),ja_aho:g('i_ja_aho'),ks:g('i_ks'),kb:g('i_kb'),ko:g('i_ko'),ka_per:g('i_ka_per'),ka_aho:g('i_ka_aho')};
       syncAll().then(function(){alert('Ingresos guardados.');});
     });
     document.getElementById('btnReglaAport').addEventListener('click', function(){
