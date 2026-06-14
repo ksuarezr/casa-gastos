@@ -1333,6 +1333,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
 
   function dChart(id){if(charts[id]){try{charts[id].destroy();}catch(e){}delete charts[id];}}
   function renderGraficas() {
+    try {
     var g=gastosAnyo(CY),n=ST.nombres;
     dChart('bc');var bce=document.getElementById('ch-bc');
     if(bce)charts['bc']=new Chart(bce.getContext('2d'),{type:'bar',data:{labels:['Madrid','Asturias',n.juls,n.kev],datasets:[{data:['madrid','asturias','juls','kev'].map(function(c){return sumArr(gastosC(g,c));}),backgroundColor:Object.values(COL),borderRadius:7}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
@@ -1356,6 +1357,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     if(bvre)charts['bvr']=new Chart(bvre.getContext('2d'),{type:'bar',data:{labels:bvrL,datasets:[{label:'Budget',data:bvrB,backgroundColor:'rgba(201,168,76,.5)',borderRadius:3},{label:'Real',data:bvrR,backgroundColor:'rgba(184,92,56,.75)',borderRadius:3}]},options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('aho');var ahoe=document.getElementById('ch-aho');
     if(ahoe)charts['aho']=new Chart(ahoe.getContext('2d'),{type:'bar',data:{labels:MESES.map(function(m){return m.slice(0,3);}),datasets:[{label:'Objetivo',data:MESES.map(function(_,i){var rJ=ST.regla.juls||{aho:20},rK=ST.regla.kev||{aho:20};return incJ(CY,i)*(rJ.aho/100)+incK(CY,i)*(rK.aho/100);}),backgroundColor:'rgba(39,169,108,.35)',borderRadius:3},{label:'Real',data:MESES.map(function(_,i){return sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===i&&x.categoria==='Ahorro';}));}),backgroundColor:'rgba(39,169,108,.8)',borderRadius:3}]},options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
+    } catch(e) { console.error('Error en graficas:', e); alert('Error al cargar graficas: '+e.message); }
   }
 
   function renderAjustes() {
