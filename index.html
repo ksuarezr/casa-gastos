@@ -1338,7 +1338,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     dChart('bc');var bce=document.getElementById('ch-bc');
     if(bce)charts['bc']=new Chart(bce.getContext('2d'),{type:'bar',data:{labels:['Madrid','Asturias',n.juls,n.kev],datasets:[{data:['madrid','asturias','juls','kev'].map(function(c){return sumArr(gastosC(g,c));}),backgroundColor:Object.values(COL),borderRadius:7}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('bcat');var bcate=document.getElementById('ch-bcat');
-
+    var cm={};g.forEach(function(x){cm[x.categoria]=(cm[x.categoria]||0)+x.importe;});
     var sorted=Object.entries(cm).sort(function(a,b){return b[1]-a[1];}).slice(0,9);
     if(bcate)charts['bcat']=new Chart(bcate.getContext('2d'),{type:'bar',data:{labels:sorted.map(function(e){return e[0];}),datasets:[{data:sorted.map(function(e){return e[1];}),backgroundColor:'rgba(90,122,94,.8)',borderRadius:5}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('ldet');var lde=document.getElementById('ch-ldet');
