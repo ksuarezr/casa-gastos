@@ -717,9 +717,8 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       rows.forEach(function(r) { if(r[0]) cfg[r[0]]=r[1]; });
       if(cfg.nombre_juls) ST.nombres.juls=cfg.nombre_juls;
       if(cfg.nombre_kev) ST.nombres.kev=cfg.nombre_kev;
-      if(cfg.pct_nec) ST.regla.nec=+cfg.pct_nec;
-      if(cfg.pct_des) ST.regla.des=+cfg.pct_des;
-      if(cfg.pct_aho) ST.regla.aho=+cfg.pct_aho;
+      // Legacy config load - ignore old flat regla format
+      // Per-person regla loaded via regla_juls/regla_kev keys
       if(cfg.cats_casa) try{ST.cats.casa=JSON.parse(cfg.cats_casa);}catch(e){}
       if(cfg.cats_pers) try{ST.cats.personal=JSON.parse(cfg.cats_pers);}catch(e){}
       if(cfg.budget_personal) try{ST.budgetPersonal=JSON.parse(cfg.budget_personal);}catch(e){}
@@ -768,7 +767,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     }).then(function() { return sheetsClear('Config!A:B'); }).then(function() {
       var cfgRows = [['key','value'],
         ['nombre_juls',ST.nombres.juls],['nombre_kev',ST.nombres.kev],
-        ['pct_nec',ST.regla.nec],['pct_des',ST.regla.des],['pct_aho',ST.regla.aho],
+        ['pct_nec',(ST.regla.juls||{nec:50}).nec],['pct_des',(ST.regla.juls||{des:30}).des],['pct_aho',(ST.regla.juls||{aho:20}).aho],
         ['cats_casa',JSON.stringify(ST.cats.casa)],['cats_pers',JSON.stringify(ST.cats.personal)],
         ['budget_personal',JSON.stringify(ST.budgetPersonal||{})],
         ['regla_juls',JSON.stringify(ST.regla.juls||{nec:50,des:30,aho:20})],
@@ -1356,7 +1355,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     });
     if(bvre)charts['bvr']=new Chart(bvre.getContext('2d'),{type:'bar',data:{labels:bvrL,datasets:[{label:'Budget',data:bvrB,backgroundColor:'rgba(201,168,76,.5)',borderRadius:3},{label:'Real',data:bvrR,backgroundColor:'rgba(184,92,56,.75)',borderRadius:3}]},options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
     dChart('aho');var ahoe=document.getElementById('ch-aho');
-    if(ahoe)charts['aho']=new Chart(ahoe.getContext('2d'),{type:'bar',data:{labels:MESES.map(function(m){return m.slice(0,3);}),datasets:[{label:'Objetivo',data:MESES.map(function(_,i){return incT(CY,i)*(ST.regla.aho/100);}),backgroundColor:'rgba(39,169,108,.35)',borderRadius:3},{label:'Real',data:MESES.map(function(_,i){return sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===i&&x.categoria==='Ahorro';}));}),backgroundColor:'rgba(39,169,108,.8)',borderRadius:3}]},options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
+    if(ahoe)charts['aho']=new Chart(ahoe.getContext('2d'),{type:'bar',data:{labels:MESES.map(function(m){return m.slice(0,3);}),datasets:[{label:'Objetivo',data:MESES.map(function(_,i){var rJ=ST.regla.juls||{aho:20},rK=ST.regla.kev||{aho:20};return incJ(CY,i)*(rJ.aho/100)+incK(CY,i)*(rK.aho/100);}),backgroundColor:'rgba(39,169,108,.35)',borderRadius:3},{label:'Real',data:MESES.map(function(_,i){return sumArr(ST.gastos.filter(function(x){return yOf(x)===CY&&mOf(x)===i&&x.categoria==='Ahorro';}));}),backgroundColor:'rgba(39,169,108,.8)',borderRadius:3}]},options:{plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:function(v){return v+'E';}}}}}});
   }
 
   function renderAjustes() {
