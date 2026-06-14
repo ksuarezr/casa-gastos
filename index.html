@@ -869,7 +869,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var names={madrid:'Madrid',asturias:'Asturias',juls:ST.nombres.juls,kev:ST.nombres.kev};
     var recent=ST.gastos.slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,6);
     var rows=recent.map(function(g) {
-      return '<tr><td>'+fmtD(g.fecha)+'</td><td><span class="badge '+g.cuenta+'">'+(names[g.cuenta]||g.cuenta)+'</span></td><td>'+g.categoria+'</td><td style="color:#8a8578">'+( g.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(g.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+g.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+g.id+'" data-action="del">X</button></td></tr>';
+      return '<tr><td>'+fmtD(g.fecha)+'</td><td><span class="badge '+g.cuenta+'">'+(names[g.cuenta]||g.cuenta)+'</span></td><td>'+g.categoria+'</td><td style="color:#8a8578">'+( g.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(g.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+g.id+'" data-action="edit">&#9999;</button><button class="btn danger sm" data-id="'+g.id+'" data-action="del">&#128465;</button></td></tr>';
     }).join('');
     document.getElementById('nuevo-recent').innerHTML = recent.length ?
       '<div class="tw"><div class="twh"><h3>Ultimos gastos</h3></div><table><thead><tr><th>Fecha</th><th>Cuenta</th><th>Cat</th><th>Desc</th><th>Importe</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '';
@@ -1040,7 +1040,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     });
     var tCls=tB?devcls(tR,tB):'neu',tPct=tB?Math.round(tR/tB*100):0;
     rows+='<tr class="totrow"><td>TOTAL</td><td>'+fmt(tB)+'</td><td>'+fmt(tR)+'</td><td>'+(tB?'<div class="pw '+tCls+'"><div class="pbg"><div class="pfill" style="width:'+Math.min(100,tPct)+'%"></div></div><span class="pp">'+tPct+'%</span></div>':'')+'</td><td>'+(tB?(tB-tR>=0?'<span class="chip ok">v '+fmt(tB-tR)+'</span>':'<span class="chip over">^ '+fmt(tR-tB)+'</span>'):'')+'</td></tr>';
-    var txnR=g.slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,10).map(function(x){return '<tr><td>'+fmtD(x.fecha)+'</td><td>'+x.categoria+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">X</button></td></tr>';}).join('');
+    var txnR=g.slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,10).map(function(x){return '<tr><td>'+fmtD(x.fecha)+'</td><td>'+x.categoria+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">&#9999;</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">&#128465;</button></td></tr>';}).join('');
     document.getElementById('casa-panel').innerHTML=
       '<div class="panel" style="margin-bottom:11px"><div class="phead"><h3>'+(aCasa==='madrid'?'Madrid':'Asturias')+' - '+MESES[CM]+' '+CY+'</h3><span style="font-weight:600;font-size:.83rem">'+fmt(tR)+' / '+fmt(tB)+'</span></div>'+
       '<table class="bt"><thead><tr><th>Partida</th><th>Budget</th><th>Gastado</th><th>Progreso</th><th>Desviacion</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" style="padding:16px;text-align:center;color:#aaa">Sin datos.</td></tr>')+'</tbody></table></div>'+
@@ -1088,7 +1088,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       var rowStyle=isAho?'background:rgba(39,169,108,.05)':'';
       var catLabel=isAho?'<span style="color:var(--green);font-size:.68rem;font-weight:700">AHORRO</span> '+x.categoria:x.categoria;
       var amtStyle=isAho?'font-weight:600;color:var(--green)':'font-weight:600';
-      return '<tr style="'+rowStyle+'"><td>'+fmtD(x.fecha)+'</td><td>'+catLabel+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="'+amtStyle+'">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">X</button></td></tr>';
+      return '<tr style="'+rowStyle+'"><td>'+fmtD(x.fecha)+'</td><td>'+catLabel+'</td><td style="color:#8a8578">'+(x.descripcion||'-')+'</td><td style="'+amtStyle+'">'+fmt(x.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+x.id+'" data-action="edit">&#9999;</button><button class="btn danger sm" data-id="'+x.id+'" data-action="del">&#128465;</button></td></tr>';
     }).join('');
     var anual=sumArr(gastosAnyo(CY).filter(function(x){return x.cuenta===aPers&&AHORRO_CATS.indexOf(x.categoria)===-1;}));
     var anualAhorro=sumArr(gastosAnyo(CY).filter(function(x){return x.cuenta===aPers&&AHORRO_CATS.indexOf(x.categoria)!==-1;}));
@@ -1337,7 +1337,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     var tbody=document.getElementById('lista-body'),empty=document.getElementById('lista-empty'),tot=document.getElementById('lista-tot');
     if(!res.length){tbody.innerHTML='';empty.style.display='block';tot.style.display='none';return;}
     empty.style.display='none';tot.style.display='block';tot.textContent=res.length+' movimientos - '+fmt(sumArr(res));
-    tbody.innerHTML=res.map(function(g){return '<tr><td>'+fmtD(g.fecha)+'</td><td><span class="badge '+g.cuenta+'">'+(names[g.cuenta]||g.cuenta)+'</span></td><td>'+g.categoria+'</td><td style="color:#8a8578">'+(g.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(g.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+g.id+'" data-action="edit">E</button><button class="btn danger sm" data-id="'+g.id+'" data-action="del">X</button></td></tr>';}).join('');
+    tbody.innerHTML=res.map(function(g){return '<tr><td>'+fmtD(g.fecha)+'</td><td><span class="badge '+g.cuenta+'">'+(names[g.cuenta]||g.cuenta)+'</span></td><td>'+g.categoria+'</td><td style="color:#8a8578">'+(g.descripcion||'-')+'</td><td style="font-weight:600">'+fmt(g.importe)+'</td><td style="display:flex;gap:3px"><button class="btn sec sm" data-id="'+g.id+'" data-action="edit">&#9999;</button><button class="btn danger sm" data-id="'+g.id+'" data-action="del">&#128465;</button></td></tr>';}).join('');
     tbody.querySelectorAll('[data-action]').forEach(function(btn){btn.addEventListener('click',function(){var id=this.getAttribute('data-id'),action=this.getAttribute('data-action');if(action==='edit')editGasto(id);else delGasto(id);});});
   }
 
