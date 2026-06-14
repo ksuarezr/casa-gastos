@@ -188,7 +188,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
             </select>
           </div>
           <div class="field"><label>Categoria</label><select id="fCat"></select></div>
-          <div class="field"><label>Importe</label><input type="number" id="fImp" min="0" step="0.01" placeholder="0.00" inputmode="decimal"></div>
+          <div class="field"><label>Importe</label><input type="text" id="fImp" placeholder="0.00" inputmode="decimal"></div>
           <div class="field"><label>Fecha</label><input type="date" id="fFecha"></div>
         </div>
         <div class="frow"><div class="field" style="grid-column:1/-1"><label>Descripcion</label><input type="text" id="fDesc" placeholder="Ej: Mercadona..."></div></div>
@@ -528,6 +528,13 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function incT(y,m) { return incJ(y,m)+incK(y,m); }
   function devcls(r,b) { if(!b) return 'neu'; var p=r/b; return p<0.7?'ok':p<0.9?'warn':'over'; }
   function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
+  function parseNum(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    // Accept both comma and dot as decimal separator
+    var s = String(val).trim().replace(',', '.');
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
   function getPersonalBudget(p,y,m) {
     var manual = ((ST.budgetPersonal[y]||{})[m]||{})[p];
     if (manual>0) return {amount:manual, isManual:true};
@@ -878,7 +885,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function guardarGasto() {
     var cuenta=document.getElementById('fCuenta').value;
     var cat=document.getElementById('fCat').value;
-    var imp=parseFloat(document.getElementById('fImp').value);
+    var imp=parseNum(document.getElementById('fImp').value);
     var fecha=document.getElementById('fFecha').value;
     var desc=document.getElementById('fDesc').value.trim();
     var eid=document.getElementById('eid').value;
@@ -890,6 +897,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         save();
         cancelEdit();
         renderNuevo();
+        refreshActive();
         fastUpdateGasto(ST.gastos[idx]);
       }
     } else {
@@ -898,6 +906,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       save();
       cancelEdit();
       renderNuevo();
+      refreshActive();
       fastSaveGasto(newG);
     }
   }
@@ -930,6 +939,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     ST.gastos=ST.gastos.filter(function(g){return g.id!==id;});
     save();
     renderNuevo();
+    refreshActive();
     fastDeleteGasto(id);
 
   }
@@ -1103,7 +1113,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       '</div>';
     var btnBP=document.getElementById('btnBP');
     if(btnBP)btnBP.addEventListener('click',function(){
-      var val=parseFloat(document.getElementById('bp_inline').value)||0;
+      var val=parseNum(document.getElementById('bp_inline').value);
       if(!ST.budgetPersonal[CY])ST.budgetPersonal[CY]={};
       if(!ST.budgetPersonal[CY][CM])ST.budgetPersonal[CY][CM]={};
       if(val>0)ST.budgetPersonal[CY][CM][aPers]=val;else delete ST.budgetPersonal[CY][CM][aPers];
@@ -1163,7 +1173,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   }
 
   function updI() {
-    function g(id){var e=document.getElementById(id);return e?+(e.value||0):0;}
+    function g(id){var e=document.getElementById(id);return e?parseNum(e.value):0;}
     var js=g('i_js'),jb=g('i_jb'),jo=g('i_jo'),ks=g('i_ks'),kb=g('i_kb'),ko=g('i_ko');
     function s(id,v){var e=document.getElementById(id);if(e)e.textContent=fmt(v);}
     s('ts_s',js+ks);s('ts_b',jb+kb);s('ts_o',jo+ko);s('ts_j',js+jb+jo);s('ts_k',ks+kb+ko);s('ts_t',js+jb+jo+ks+kb+ko);
@@ -1380,7 +1390,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       btn.addEventListener('click',function(){
         var type=this.getAttribute('data-type'),i=parseInt(this.getAttribute('data-i'));
         if(!confirm('Eliminar?'))return;
-        ST.cats[type].splice(i,1);renderCatList();syncAll();
+        ST.cats[type].splice(i,1);renderCatList();refreshActive();syncAll();
       });
     });
   }
@@ -1412,6 +1422,9 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   function refresh() {
     document.getElementById('yearLabel').textContent=CY;
     document.getElementById('delY').textContent=CY;
+    refreshActive();
+  }
+  function refreshActive() {
     var active=document.querySelector('.sec.active');
     if(!active)return;
     var id=active.id.replace('s-','');
@@ -1463,7 +1476,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('ftabK').addEventListener('click', function(){switchFijosTab('kev');});
     document.getElementById('btnAddFijo').addEventListener('click', function(){
       var desc = document.getElementById('fijos-desc').value.trim();
-      var imp = parseFloat(document.getElementById('fijos-imp').value)||0;
+      var imp = parseNum(document.getElementById('fijos-imp').value);
       if (!desc || imp<=0) { alert('Añade descripcion e importe.'); return; }
       if (!ST.gastosFijos) ST.gastosFijos = {juls:[], kev:[]};
       if (!ST.gastosFijos[activeFijosTab]) ST.gastosFijos[activeFijosTab] = [];
@@ -1472,21 +1485,23 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       document.getElementById('fijos-imp').value = '';
       renderFijosTab();
       renderAportaciones();
+      refreshActive();
       syncAll();
     });
     document.getElementById('btnAport').addEventListener('click', function(){
       var keys = ['km','ka','jm','ja'];
       keys.forEach(function(k){
         var el = document.getElementById('ap_'+k);
-        if (el) saveAportacion(CY, CM, k, parseFloat(el.value)||0);
+        if (el) saveAportacion(CY, CM, k, parseNum(el.value));
       });
+      refreshActive();
       syncAll().then(function(){alert('Aportaciones de '+MESES[CM]+' guardadas.');});
     });
     // Ahorro input updates
     ['aho_j','aho_k','inv_j','inv_k'].forEach(function(id){
       var el=document.getElementById(id);
       if(el) el.addEventListener('input', function(){
-        function g(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+        function g(i){var e=document.getElementById(i);return e?parseNum(e.value):0;}
         var aj=g('aho_j'),ak=g('aho_k'),ij=g('inv_j'),ik=g('inv_k');
         function s(i,v){var e=document.getElementById(i);if(e)e.textContent=fmt(v);}
         s('aho_t',aj+ak); s('inv_t',ij+ik);
@@ -1497,7 +1512,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       // If bonus split is visible, use those values instead of the ahorro section
       var bonusVisible = document.getElementById('bonus-split-section');
       if (bonusVisible && bonusVisible.style.display !== 'none') {
-        function gb(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+        function gb(i){var e=document.getElementById(i);return e?parseNum(e.value):0;}
         var jPer=gb('bs_jper'),kPer=gb('bs_kper'),jAho=gb('bs_jaho'),kAho=gb('bs_kaho');
         var today=new Date().toISOString().slice(0,10);
         var nuevos=[];
@@ -1511,7 +1526,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
           return;
         }
       }
-      function g(i){var e=document.getElementById(i);return e?+(e.value||0):0;}
+      function g(i){var e=document.getElementById(i);return e?parseNum(e.value):0;}
       var aj=g('aho_j'),ak=g('aho_k'),ij=g('inv_j'),ik=g('inv_k');
       var today=new Date().toISOString().slice(0,10);
       var nuevos=[];
@@ -1526,7 +1541,7 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       alert('Ahorro e inversiones registrados.');
     });
     document.getElementById('btnIngresos').addEventListener('click', function(){
-      function g(id){var e=document.getElementById(id);return e?+(e.value||0):0;}
+      function g(id){var e=document.getElementById(id);return e?parseNum(e.value):0;}
       if(!ST.ingresos[CY])ST.ingresos[CY]={};
       ST.ingresos[CY][CM]={js:g('i_js'),jb:g('i_jb'),jo:g('i_jo'),ja_per:g('i_ja_per'),ja_aho:g('i_ja_aho'),ks:g('i_ks'),kb:g('i_kb'),ko:g('i_ko'),ka_per:g('i_ka_per'),ka_aho:g('i_ka_aho')};
       syncAll().then(function(){alert('Ingresos guardados.');});
@@ -1548,15 +1563,16 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     document.getElementById('btnBS').addEventListener('click', function(){
       if(!ST.budgets[aBSCasa][CY])ST.budgets[aBSCasa][CY]={};
       var obj={};
-      ST.cats.casa.forEach(function(cat){var el=document.getElementById('bi_'+cat.replace(/[^a-zA-Z0-9]/g,'_'));if(el&&el.value!=='')obj[cat]=parseFloat(el.value)||0;});
+      ST.cats.casa.forEach(function(cat){var el=document.getElementById('bi_'+cat.replace(/[^a-zA-Z0-9]/g,'_'));if(el&&el.value!=='')obj[cat]=parseNum(el.value);});
       ST.budgets[aBSCasa][CY][aBSM]=obj;
+      refreshActive();
       syncAll().then(function(){alert('Budget guardado.');});
     });
     document.getElementById('btnAddCat').addEventListener('click', function(){
       var v=document.getElementById('newCat').value.trim();if(!v)return;
       var t=confirm('Casa? (OK=Casa, Cancelar=Personal)')?'casa':'personal';
       if(ST.cats[t].indexOf(v)!==-1){alert('Ya existe.');return;}
-      ST.cats[t].push(v);renderCatList();syncAll();
+      ST.cats[t].push(v);renderCatList();refreshActive();syncAll();
       document.getElementById('newCat').value='';
     });
     document.getElementById('pmad').addEventListener('click', function(){aCasa='madrid';document.getElementById('pmad').className='pill am';document.getElementById('past').className='pill';renderCasaPanel();});
