@@ -698,13 +698,13 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         return {id:r[0],cuenta:r[1],categoria:normCat(r[2]),importe:parseFloat(r[3])||0,fecha:r[4],descripcion:r[5]||''};
       });
     }).catch(function(e) { console.warn('gastos',e); })
-    .then(function() { return sheetsGet('Ingresos!A:H'); }).then(function(r) {
+    .then(function() { return sheetsGet('Ingresos!A:L'); }).then(function(r) {
       var rows = (r.values||[]).slice(1);
       ST.ingresos = {};
       rows.filter(function(r) { return r[0]; }).forEach(function(r) {
         var y=parseInt(r[0]), m=parseInt(r[1]);
         if(!ST.ingresos[y]) ST.ingresos[y]={};
-        ST.ingresos[y][m]={js:+r[2]||0,jb:+r[3]||0,jo:+r[4]||0,ks:+r[5]||0,kb:+r[6]||0,ko:+r[7]||0};
+        ST.ingresos[y][m]={js:+r[2]||0,jb:+r[3]||0,jo:+r[4]||0,ks:+r[5]||0,kb:+r[6]||0,ko:+r[7]||0,ja_per:+r[8]||0,ja_aho:+r[9]||0,ka_per:+r[10]||0,ka_aho:+r[11]||0};
       });
     }).catch(function(e) { console.warn('ingresos',e); })
     .then(function() { return sheetsGet('Budgets!A:E'); }).then(function(r) {
@@ -749,12 +749,12 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       var gRows = [['id','cuenta','categoria','importe','fecha','descripcion']];
       ST.gastos.forEach(function(g) { gRows.push([g.id,g.cuenta,g.categoria,g.importe,g.fecha,g.descripcion||'']); });
       if (gRows.length>1) return sheetsSet('Gastos!A1', gRows);
-    }).then(function() { return sheetsClear('Ingresos!A:H'); }).then(function() {
-      var iRows = [['year','month','js','jb','jo','ks','kb','ko']];
+    }).then(function() { return sheetsClear('Ingresos!A:L'); }).then(function() {
+      var iRows = [['year','month','js','jb','jo','ks','kb','ko','ja_per','ja_aho','ka_per','ka_aho']];
       Object.keys(ST.ingresos).forEach(function(y) {
         Object.keys(ST.ingresos[y]).forEach(function(m) {
           var v=ST.ingresos[y][m];
-          iRows.push([y,m,v.js||0,v.jb||0,v.jo||0,v.ks||0,v.kb||0,v.ko||0]);
+          iRows.push([y,m,v.js||0,v.jb||0,v.jo||0,v.ks||0,v.kb||0,v.ko||0,v.ja_per||0,v.ja_aho||0,v.ka_per||0,v.ka_aho||0]);
         });
       });
       if (iRows.length>1) return sheetsSet('Ingresos!A1', iRows);
