@@ -646,9 +646,35 @@ tbody td{padding:8px 11px;font-size:.8rem;}
   }
 
   function fastDeleteGasto(gastoId) {
-    // Full sync needed for deletes - but do it silently
+    // Delete: find row in sheet and clear it, then compact
     if (!accessToken) return Promise.resolve();
-    return syncAll(true);
+    // ST.gastos already has it removed locally. Rewrite gastos sheet from local
+    // but reload first to capture other users additions (except the deleted one)
+    return sheetsGet('Gastos!A:F').then(function(r) {
+      var rows = (r.values||[]).slice(1);
+      var sheetGastos = rows.filter(function(r){return r[0]&&r[0]!==gastoId;}).map(function(r){
+        return {id:r[0],cuenta:r[1],categoria:normCat(r[2]),importe:parseFloat(r[3])||0,fecha:r[4],descripcion:r[5]||''};
+      });
+      // Merge sheet (minus deleted) with local (minus deleted)
+      var localIds = {};
+      ST.gastos.forEach(function(g){ localIds[g.id]=g; });
+      var merged = ST.gastos.slice(); // local already has it removed
+      var seen = {};
+      merged.forEach(function(g){ seen[g.id]=1; });
+      sheetGastos.forEach(function(g){ if(!seen[g.id]){ merged.push(g); seen[g.id]=1; } });
+      ST.gastos = merged;
+      save();
+      return sheetsClear('Gastos!A:F');
+    }).then(function(){
+      var gRows = [['id','cuenta','categoria','importe','fecha','descripcion']];
+      ST.gastos.forEach(function(g){ gRows.push([g.id,g.cuenta,g.categoria,g.importe,g.fecha,g.descripcion||'']); });
+      if (gRows.length>1) return sheetsSet('Gastos!A1', gRows);
+    }).then(function(){
+      setSyncStatus('ok','Borrado '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
+    }).catch(function(e){
+      if (e.message && e.message.indexOf('401')!==-1) { renewSession(); }
+      else { console.error(e); }
+    });
   }
 
   function fastUpdateGasto(gasto) {
@@ -691,6 +717,34 @@ tbody td{padding:8px 11px;font-size:.8rem;}
       });
   }
 
+  function reloadGastosFromSheet() {
+    // Read current gastos from sheet and merge with local by id
+    return sheetsGet('Gastos!A:F').then(function(r) {
+      var rows = (r.values||[]).slice(1);
+      var sheetGastos = rows.filter(function(r){return r[0];}).map(function(r){
+        return {id:r[0],cuenta:r[1],categoria:normCat(r[2]),importe:parseFloat(r[3])||0,fecha:r[4],descripcion:r[5]||''};
+      });
+      // Merge: keep all unique ids. Local changes (edits/deletes) take priority for ids we have.
+      // Build a map of local gastos by id
+      var localById = {};
+      ST.gastos.forEach(function(g){ localById[g.id]=g; });
+      var sheetById = {};
+      sheetGastos.forEach(function(g){ sheetById[g.id]=g; });
+      // Result: all sheet gastos that we didn't delete locally, plus our local additions
+      // Since we cant know deletes easily, use union but local wins on conflict
+      var merged = [];
+      var seen = {};
+      // Add all local gastos first (these include our additions and edits)
+      ST.gastos.forEach(function(g){ merged.push(g); seen[g.id]=1; });
+      // Add sheet gastos that we don't have locally (other users additions)
+      sheetGastos.forEach(function(g){ if(!seen[g.id]){ merged.push(g); seen[g.id]=1; } });
+      ST.gastos = merged;
+      save();
+    }).catch(function(e){
+      if (e.message && e.message.indexOf('401')!==-1) { renewSession(); }
+      console.warn('reload gastos', e);
+    });
+  }
   function loadFromSheets() {
     return sheetsGet('Gastos!A:F').then(function(r) {
       var rows = (r.values||[]).slice(1);
@@ -745,11 +799,28 @@ tbody td{padding:8px 11px;font-size:.8rem;}
     if (!accessToken) { setSyncStatus('err','No autenticado'); return Promise.resolve(); }
     setSyncStatus('','Sincronizando...');
     if (!silent) showLoading('Guardando...');
-    return sheetsClear('Gastos!A:F').then(function() {
+    // CRITICAL: reload gastos from sheet first to merge with other users' changes
+    return reloadGastosFromSheet().then(function() {
+      return sheetsClear('Gastos!A:F');
+    }).then(function() {
       var gRows = [['id','cuenta','categoria','importe','fecha','descripcion']];
       ST.gastos.forEach(function(g) { gRows.push([g.id,g.cuenta,g.categoria,g.importe,g.fecha,g.descripcion||'']); });
       if (gRows.length>1) return sheetsSet('Gastos!A1', gRows);
-    }).then(function() { return sheetsClear('Ingresos!A:L'); }).then(function() {
+    }).then(function() {
+      // Reload ingresos from sheet and merge (keep all months, local wins on current month)
+      return sheetsGet('Ingresos!A:L');
+    }).then(function(r) {
+      var rows = (r.values||[]).slice(1);
+      rows.filter(function(rr){return rr[0];}).forEach(function(rr){
+        var y=parseInt(rr[0]), m=parseInt(rr[1]);
+        if(!ST.ingresos[y]) ST.ingresos[y]={};
+        // Only add months we don't have locally (other users edits)
+        if(!ST.ingresos[y][m]){
+          ST.ingresos[y][m]={js:+rr[2]||0,jb:+rr[3]||0,jo:+rr[4]||0,ks:+rr[5]||0,kb:+rr[6]||0,ko:+rr[7]||0,ja_per:+rr[8]||0,ja_aho:+rr[9]||0,ka_per:+rr[10]||0,ka_aho:+rr[11]||0};
+        }
+      });
+      return sheetsClear('Ingresos!A:L');
+    }).then(function() {
       var iRows = [['year','month','js','jb','jo','ks','kb','ko','ja_per','ja_aho','ka_per','ka_aho']];
       Object.keys(ST.ingresos).forEach(function(y) {
         Object.keys(ST.ingresos[y]).forEach(function(m) {
@@ -758,7 +829,22 @@ tbody td{padding:8px 11px;font-size:.8rem;}
         });
       });
       if (iRows.length>1) return sheetsSet('Ingresos!A1', iRows);
-    }).then(function() { return sheetsClear('Budgets!A:E'); }).then(function() {
+    }).then(function() {
+      return sheetsGet('Budgets!A:E');
+    }).then(function(r) {
+      var rows = (r.values||[]).slice(1);
+      rows.filter(function(rr){return rr[0];}).forEach(function(rr){
+        var casa=rr[0],y=parseInt(rr[1]),m=parseInt(rr[2]),cat=rr[3],val=parseFloat(rr[4])||0;
+        if(!ST.budgets[casa]) ST.budgets[casa]={};
+        if(!ST.budgets[casa][y]) ST.budgets[casa][y]={};
+        if(!ST.budgets[casa][y][m]) ST.budgets[casa][y][m]={};
+        // Only add if we don't have this casa/year/month locally (other user)
+        if(ST.budgets[casa][y][m][cat]===undefined){
+          ST.budgets[casa][y][m][cat]=val;
+        }
+      });
+      return sheetsClear('Budgets!A:E');
+    }).then(function() {
       var bRows = [['casa','year','month','categoria','valor']];
       ['madrid','asturias'].forEach(function(casa) {
         Object.keys(ST.budgets[casa]||{}).forEach(function(y) {
